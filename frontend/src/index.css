@@ -1,0 +1,44 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+/* Text scaling classes */
+:root {
+  --text-scale-small: 0.875;
+  --text-scale-normal: 1;
+  --text-scale-large: 1.25;
+  --text-scale-xlarge: 1.5;
+}
+
+/* Apply font scaling to the root element using rem scaling */
+html.text-scale-small {
+  font-size: calc(16px * var(--text-scale-small));
+}
+
+html.text-scale-normal {
+  font-size: calc(16px * var(--text-scale-normal));
+}
+
+html.text-scale-large {
+  font-size: calc(16px * var(--text-scale-large));
+}
+
+html.text-scale-xlarge {
+  font-size: calc(16px * var(--text-scale-xlarge));
+}
+
+/* Ensure proper scaling for all text elements */
+.text-scale-small {
+  font-size: calc(1rem * var(--text-scale-small));
+}
+
+.text-scale-normal {
+  font-size: calc(1rem * var(--text-scale-normal));
+}
+
+.text-scale-large {
+  font-size: calc(1rem * var(--text-scale-large));
+}
+
+.text-scale-xlarge {
+  font-size: calc(1rem * var(--text-scale-xlarge));
+}

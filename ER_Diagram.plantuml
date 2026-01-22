@@ -1,0 +1,94 @@
+@startuml
+!theme plain
+title ChaiCharoen Catering System - Entity Relationship Diagram
+
+package "ChaiCharoen Catering Database" {
+  entity User {
+    * _id: ObjectId <<PK>>
+    * title: String
+    * firstName: String
+    * lastName: String
+    * username: String <<unique>>
+    * email: String <<unique>>
+    * password: String
+    * phone: String <<unique>>
+    * role: String
+    * isActive: Boolean
+    --
+    createdAt: Date
+    updatedAt: Date
+  }
+
+  entity Booking {
+    * _id: ObjectId <<PK>>
+    * bookingCode: String <<unique>>
+    * customerID: ObjectId <<FK>>
+    * customerName: String
+    * customerPhone: String
+    * customerEmail: String
+    * packageID: ObjectId <<FK>>
+    * packageName: String
+    * pricePerTable: Decimal128
+    * bookingDate: Date
+    * eventDatetime: Date
+    * tableCount: Number
+    * address: String
+    * latitude: Number
+    * longitude: Number
+    * paymentStatus: String
+    * totalPrice: Decimal128
+    * depositRequired: Decimal128
+    * menuSets: [Object]
+    * payments: [Object]
+    --
+    createdAt: Date
+    updatedAt: Date
+  }
+
+  entity Review {
+    * _id: ObjectId <<PK>>
+    * customerID: ObjectId <<FK>>
+    * bookingID: ObjectId <<FK>>
+    * rating: Number
+    * reviewText: String
+    * reviewDate: Date
+    --
+    createdAt: Date
+    updatedAt: Date
+  }
+
+  entity MenuPackage {
+    * _id: ObjectId <<PK>>
+    * name: String <<unique>>
+    * price: Decimal128
+    * menus: [ObjectId] <<FK>>
+    * maxSelect: Number
+    * extraMenuPrice: Decimal128
+    * description: String
+    --
+    createdAt: Date
+    updatedAt: Date
+  }
+
+  entity Menu {
+    * _id: ObjectId <<PK>>
+    * code: String <<unique>>
+    * name: String
+    * description: String
+    * category: String
+    * price: Decimal128
+    * packagePrice: Decimal128
+    * image: String
+    * tags: [String]
+    * active: Boolean
+    --
+    createdAt: Date
+    updatedAt: Date
+  }
+}
+
+User ||--o{ Booking : "makes"
+Booking ||--|| Review : "has"
+MenuPackage ||--o{ Booking : "used_in"
+MenuPackage }o--o{ Menu : "contains"
+@enduml
