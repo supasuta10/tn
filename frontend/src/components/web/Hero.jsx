@@ -25,7 +25,7 @@ const Hero = () => {
                         <h1 className="text-4xl sm:text-5xl lg:text-5xl xl:text-6xl font-bold text-gray-900 leading-tight">
                             <span className="block">โต๊ะจีน</span>
                             <span className="block text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-amber-600 mt-2">
-                                ชัยเจริญโภชนา (เอ๋)
+                                ชัยเจริญโภชนา (เอ๋) นครปฐม
                             </span>
                         </h1>
 
@@ -45,12 +45,12 @@ const Hero = () => {
                         </p>
 
                         <div className="flex flex-col sm:flex-row flex-wrap gap-4 justify-center lg:justify-start mt-6">
-                            <button className="btn bg-gradient-to-r from-green-600 to-green-700 text-white px-8 py-4 text-lg rounded-xl shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 transform font-semibold">
+                             <a href="/booking"><button className="btn bg-gradient-to-r from-green-600 to-green-700 text-white px-8 py-4 text-lg rounded-xl shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 transform font-semibold">
                                 จองตอนนี้
-                            </button>
-                            <button className="btn bg-white text-green-700 border-2 border-green-600 hover:bg-green-50 px-8 py-4 text-lg rounded-xl transition-all duration-300 hover:shadow-lg hover:scale-105 transform font-semibold">
+                            </button></a>
+                            <a href="/menu"><button className="btn bg-white text-green-700 border-2 border-green-600 hover:bg-green-50 px-8 py-4 text-lg rounded-xl transition-all duration-300 hover:shadow-lg hover:scale-105 transform font-semibold">
                                 ดูเมนู
-                            </button>
+                            </button></a>
                         </div>
                     </div>
 

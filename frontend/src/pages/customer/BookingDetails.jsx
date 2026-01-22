@@ -591,12 +591,6 @@ const BookingDetails = () => {
                         <div className="bg-white rounded-xl shadow-md border border-green-200 p-6">
                             <h2 className="text-xl font-bold text-green-700 mb-4">การดำเนินการ</h2>
                             <div className="space-y-3">
-                                <button className="btn w-full bg-green-600 text-white hover:bg-green-700">
-                                    ติดต่อฝ่ายบริการ
-                                </button>
-                                <button className="btn w-full bg-gray-200 text-gray-700 hover:bg-gray-300">
-                                    พิมพ์ใบแจ้งหนี้
-                                </button>
                                 {booking.payment_status === 'pending-deposit' ? (
                                     <>
                                         <button
@@ -666,7 +660,7 @@ const BookingDetails = () => {
                                             <input
                                                 type="number"
                                                 className={`input ${paymentType === 'deposit' ? 'input-bordered' : 'input-bordered'} w-full bg-white border-green-200`}
-                                                value={paymentAmount}
+                                                value={!paymentAmount || !selectedFile}
                                                 onChange={(e) => {
                                                     // Only allow manual input if not deposit type
                                                     if (paymentType !== 'deposit') {
