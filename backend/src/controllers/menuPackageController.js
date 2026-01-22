@@ -1,9 +1,27 @@
 const menuPackageModel = require("../models/menuPackageModel");
+const menuModel = require("../models/menuModel");
+
+// ฟังก์ชันช่วยดึง menu IDs จาก categories
+const extractMenuIds = (categories) => {
+  let menuIds = [];
+  if (categories && Array.isArray(categories)) {
+    categories.forEach(cat => {
+      if (cat.items && Array.isArray(cat.items)) {
+        cat.items.forEach(item => {
+          if (item.menu) {
+            menuIds.push(item.menu);
+          }
+        });
+      }
+    });
+  }
+  return menuIds;
+};
 
 // สร้าง MenuPackage ใหม่
 exports.createMenuPackage = async (req, res) => {
   try {
-    const { name, price, menus, maxSelect, extraMenuPrice, description } = req.body;
+    const { name, price, categories, description } = req.body;
 
     if (!name) {
       return res.status(400).json({ message: "ต้องระบุชื่อแพ็กเกจ" });
@@ -29,11 +47,20 @@ exports.createMenuPackage = async (req, res) => {
     const menuPackage = await menuPackageModel.create({
       name,
       price,
-      menus,
-      maxSelect,
-      extraMenuPrice,
+      categories,
       description
     });
+
+    // --- Sync Menu.packages ---
+    // ดึง menu IDs ทั้งหมดที่อยู่ใน package นี้
+    const menuIds = extractMenuIds(categories);
+    if (menuIds.length > 0) {
+      // อัปเดต Menu ทุกตัวที่มี id ใน menuIds ให้เก็บ packageId นี้
+      await menuModel.updateMany(
+        { _id: { $in: menuIds } },
+        { $addToSet: { packages: menuPackage._id } }
+      );
+    }
 
     res.status(201).json({ message: "สร้างแพ็กเกจเมนูสำเร็จ", data: menuPackage });
   } catch (error) {
@@ -84,7 +111,7 @@ exports.getAllMenuPackages = async (req, res) => {
     }
 
     const packages = await menuPackageModel.find(filter)
-      .populate("menus") // แสดงรายละเอียด menu ด้วย
+      .populate("categories.items.menu") // แสดงรายละเอียด menu ด้วย
       .sort({ createdAt: -1 });
 
     res.status(200).json({ data: packages });
@@ -98,7 +125,7 @@ exports.getAllMenuPackages = async (req, res) => {
 exports.getMenuPackageById = async (req, res) => {
   try {
     const { id } = req.params;
-    const menuPackage = await menuPackageModel.findById(id).populate("menus");
+    const menuPackage = await menuPackageModel.findById(id).populate("categories.items.menu");
     if (!menuPackage) {
       return res.status(404).json({ message: "ไม่พบแพ็กเกจเมนู" });
     }
@@ -145,6 +172,24 @@ exports.updateMenuPackage = async (req, res) => {
       return res.status(404).json({ message: "ไม่พบแพ็กเกจเมนู" });
     }
 
+    // --- Sync Menu.packages ---
+    // 1. ลบ packageId นี้ออกจาก Menu ทุกตัวก่อน (Reset)
+    await menuModel.updateMany(
+      { packages: id },
+      { $pull: { packages: id } }
+    );
+
+    // 2. เพิ่ม packageId เข้าไปใน Menu ที่อยู่ใน list ใหม่
+    if (menuPackage.categories && menuPackage.categories.length > 0) {
+      const menuIds = extractMenuIds(menuPackage.categories);
+      if (menuIds.length > 0) {
+        await menuModel.updateMany(
+          { _id: { $in: menuIds } },
+          { $addToSet: { packages: id } }
+        );
+      }
+    }
+
     res.status(200).json({ message: "อัปเดตแพ็กเกจเมนูสำเร็จ", data: menuPackage });
   } catch (error) {
     console.error("updateMenuPackage Error:", error);
@@ -160,6 +205,14 @@ exports.deleteMenuPackage = async (req, res) => {
     if (!menuPackage) {
       return res.status(404).json({ message: "ไม่พบแพ็กเกจเมนู" });
     }
+
+    // --- Sync Menu.packages ---
+    // ลบ packageId นี้ออกจาก Menu ทุกตัว
+    await menuModel.updateMany(
+      { packages: id },
+      { $pull: { packages: id } }
+    );
+
     res.status(200).json({ message: "ลบแพ็กเกจเมนูสำเร็จ" });
   } catch (error) {
     console.error("deleteMenuPackage Error:", error);

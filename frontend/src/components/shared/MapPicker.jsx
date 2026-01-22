@@ -98,7 +98,7 @@ const MapPicker = ({ onLocationSelect, initialAddress = '', initialLat = null, i
         <input
           type="text"
           placeholder="ชื่อสถานที่จัดงาน"
-          className="w-full input input-bordered border-green-200 map-search-input mb-2"
+          className="w-full input input-bordered border-green-200 map-search-input mb-2 bg-white text-gray-900"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           onKeyPress={(e) => {

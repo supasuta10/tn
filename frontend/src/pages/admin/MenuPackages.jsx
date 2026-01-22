@@ -18,11 +18,21 @@ const MenuPackages = () => {
   const [formData, setFormData] = useState({
     name: '',
     price: '',
-    maxSelect: 8,
-    extraMenuPrice: 200,
+    conditions: [], // Array of { category, quota, extraPrice }
     menus: [],
     description: ''
   });
+
+  const CATEGORIES = ['appetizer', 'special', 'soup', 'maincourse', 'carb', 'curry', 'dessert'];
+  const CATEGORY_NAMES = {
+    'appetizer': 'ออเดิร์ฟ',
+    'special': 'เมนูพิเศษ',
+    'soup': 'ซุป',
+    'maincourse': 'จานหลัก',
+    'carb': 'ข้าว/เส้น',
+    'curry': 'ต้ม/แกง',
+    'dessert': 'ของหวาน'
+  };
 
   const [formErrors, setFormErrors] = useState({});
 
@@ -62,6 +72,7 @@ const MenuPackages = () => {
     // Define category display names in Thai
     const categoryNames = {
       'appetizer': 'ออเดิร์ฟ',
+      'special': 'เมนูพิเศษ',
       'soup': 'ซุป',
       'maincourse': 'จานหลัก',
       'carb': 'ข้าว/เส้น',
@@ -70,7 +81,7 @@ const MenuPackages = () => {
     };
 
     // Initialize all categories in the required order
-    const orderedCategories = ['appetizer', 'soup', 'maincourse', 'carb', 'curry', 'dessert'];
+    const orderedCategories = ['appetizer', 'special', 'soup', 'maincourse', 'carb', 'curry', 'dessert'];
     orderedCategories.forEach(category => {
       const categoryName = categoryNames[category];
       grouped[categoryName] = [];
@@ -110,12 +121,17 @@ const MenuPackages = () => {
   // Open modal for creating new package
   const openCreateModal = () => {
     setCurrentPackage(null);
+    // Initialize default categories
+    const initialCategories = CATEGORIES.map(cat => ({
+      name: cat,
+      quota: 1,
+      items: [] // { menu, isDefault }
+    }));
+
     setFormData({
       name: '',
       price: '',
-      maxSelect: 8,
-      extraMenuPrice: 200,
-      menus: [],
+      categories: initialCategories,
       description: ''
     });
     setFormErrors({});
@@ -125,60 +141,121 @@ const MenuPackages = () => {
   // Open modal for editing existing package
   const openEditModal = (pkg) => {
     setCurrentPackage(pkg);
+
+    let categories = [];
+    if (pkg.categories && pkg.categories.length > 0) {
+      // Map existing categories to form state
+      const existingMap = {};
+      pkg.categories.forEach(c => existingMap[c.name] = c);
+
+      categories = CATEGORIES.map(cat => {
+        if (existingMap[cat]) {
+          return {
+            name: cat,
+            quota: existingMap[cat].quota,
+            items: existingMap[cat].items.map(item => ({
+              menu: typeof item.menu === 'object' ? item.menu._id : item.menu,
+              isDefault: item.isDefault
+            }))
+          };
+        }
+        return { name: cat, quota: 1, items: [] };
+      });
+    } else {
+      // Fallback for old data or init new
+      categories = CATEGORIES.map(cat => ({
+        name: cat,
+        quota: 1,
+        items: []
+      }));
+    }
+
     setFormData({
       name: pkg.name || '',
       price: convertDecimalValue(pkg.price) || '',
-      maxSelect: pkg.maxSelect || 8,
-      extraMenuPrice: convertDecimalValue(pkg.extraMenuPrice) || 200,
-      menus: pkg.menus.map(menu => typeof menu === 'object' ? menu._id : menu) || [],
+      categories: categories,
       description: pkg.description || ''
     });
     setFormErrors({});
     setShowModal(true);
   };
 
-  // Handle form input changes
+  // Handle main form inputs
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'price' || name === 'maxSelect' || name === 'extraMenuPrice' ?
-        (name === 'price' ? parseFloat(value) || 0 : parseInt(value) || 0) : value
+      [name]: name === 'price' ? parseFloat(value) || 0 : value
     }));
-
-    // Clear error when user starts typing
-    if (formErrors[name]) {
-      setFormErrors(prev => ({ ...prev, [name]: '' }));
-    }
+    if (formErrors[name]) setFormErrors(prev => ({ ...prev, [name]: '' }));
   };
 
-  // Handle menu selection
-  const handleMenuSelect = (menuId) => {
-    setFormData(prev => {
-      const isSelected = prev.menus.includes(menuId);
+  // Handle category quota change
+  const handleCategoryQuotaChange = (index, value) => {
+    const newCategories = [...formData.categories];
+    newCategories[index] = {
+      ...newCategories[index],
+      quota: parseInt(value) || 0
+    };
+    setFormData(prev => ({ ...prev, categories: newCategories }));
+  };
 
-      // If menu is already selected, remove it
-      if (isSelected) {
-        const newMenus = prev.menus.filter(id => id !== menuId);
-        return { ...prev, menus: newMenus };
-      }
-      // If menu is not selected, check if we've reached the max selection limit
-      else if (prev.menus.length >= prev.maxSelect) {
-        // Show warning if trying to select more than allowed
+  // Handle menu item selection (toggle)
+  const handleMenuItemToggle = (categoryIndex, menuId) => {
+    const newCategories = [...formData.categories];
+    const category = newCategories[categoryIndex];
+    const itemIndex = category.items.findIndex(item => item.menu === menuId);
+
+    if (itemIndex > -1) {
+      // Remove
+      category.items.splice(itemIndex, 1);
+    } else {
+      // Add
+      category.items.push({ menu: menuId, isDefault: false });
+    }
+
+    newCategories[categoryIndex] = category;
+    setFormData(prev => ({ ...prev, categories: newCategories }));
+  };
+
+  // Handle category extra price change
+  const handleCategoryExtraPriceChange = (index, value) => {
+    const newCategories = [...formData.categories];
+    newCategories[index].extraPrice = parseInt(value) || 0;
+    setFormData(prev => ({ ...prev, categories: newCategories }));
+  };
+
+
+
+  // Handle setting default item
+  const handleSetDefaultItem = (categoryIndex, menuId) => {
+    const newCategories = [...formData.categories];
+    const category = newCategories[categoryIndex];
+
+    const targetItemIndex = category.items.findIndex(item => item.menu === menuId);
+    if (targetItemIndex === -1) return;
+
+    const isCurrentlyDefault = category.items[targetItemIndex].isDefault;
+    const currentDefaults = category.items.filter(item => item.isDefault).length;
+
+    if (!isCurrentlyDefault) {
+      // Trying to set as default -> Check quota
+      if (currentDefaults >= category.quota) {
         Swal.fire({
           icon: 'warning',
-          title: 'เลือกเมนูได้ถึงจำนวนสูงสุดแล้ว',
-          text: `คุณสามารถเลือกได้สูงสุด ${prev.maxSelect} เมนูเท่านั้น`,
+          title: 'ครบจำนวนแล้ว',
+          text: `คุณสามารถเลือกเมนูแนะนำได้ไม่เกิน ${category.quota} รายการ`,
           confirmButtonColor: '#f59e0b'
         });
-        return prev; // Don't add the menu
+        return;
       }
-      // Otherwise, add the menu
-      else {
-        const newMenus = [...prev.menus, menuId];
-        return { ...prev, menus: newMenus };
-      }
-    });
+    }
+
+    // Toggle
+    category.items[targetItemIndex].isDefault = !isCurrentlyDefault;
+
+    newCategories[categoryIndex] = category;
+    setFormData(prev => ({ ...prev, categories: newCategories }));
   };
 
   // Validate form
@@ -195,14 +272,6 @@ const MenuPackages = () => {
       errors.price = 'Package price must be greater than 0';
     }
 
-    if (!formData.maxSelect || formData.maxSelect <= 0) {
-      errors.maxSelect = 'Max selection count must be greater than 0';
-    }
-
-    if (!formData.extraMenuPrice || formData.extraMenuPrice < 0) {
-      errors.extraMenuPrice = 'Extra menu price cannot be negative';
-    }
-
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -216,9 +285,16 @@ const MenuPackages = () => {
     }
 
     try {
+      const payload = {
+        name: formData.name,
+        price: formData.price,
+        description: formData.description,
+        categories: formData.categories
+      };
+
       if (currentPackage) {
         // Update existing package
-        await menuPackageService.updateMenuPackage(currentPackage._id, formData);
+        await menuPackageService.updateMenuPackage(currentPackage._id, payload);
         Swal.fire({
           icon: 'success',
           title: 'อัปเดตเรียบร้อยแล้ว!',
@@ -227,7 +303,7 @@ const MenuPackages = () => {
         });
       } else {
         // Create new package
-        await menuPackageService.createMenuPackage(formData);
+        await menuPackageService.createMenuPackage(payload);
         Swal.fire({
           icon: 'success',
           title: 'เพิ่มเรียบร้อยแล้ว!',
@@ -244,8 +320,7 @@ const MenuPackages = () => {
       setFormData({
         name: '',
         price: '',
-        maxSelect: 8,
-        extraMenuPrice: 200,
+        conditions: [],
         menus: [],
         description: ''
       });
@@ -440,7 +515,6 @@ const MenuPackages = () => {
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อชุด</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">ราคา</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">เลือกสูงสุด</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">ราคาเพิ่มเติม</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">จำนวนเมนู</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">การจัดการ</th>
               </tr>
@@ -454,30 +528,33 @@ const MenuPackages = () => {
                   convertDecimalValue(pkg.extraMenuPrice).toString().includes(searchTerm)
                 )
                 .map((pkg) => (
-                <tr key={pkg._id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{pkg.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{formatPriceWithCurrency(pkg.price)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{pkg.maxSelect}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{formatPriceWithCurrency(pkg.extraMenuPrice)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{pkg.menus?.length || 0}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => openEditModal(pkg)}
-                        className="p-1 hover:bg-gray-100 rounded text-blue-600"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => deleteMenuPackage(pkg)}
-                        className="p-1 hover:bg-gray-100 rounded text-red-600"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                  <tr key={pkg._id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{pkg.name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{formatPriceWithCurrency(pkg.price)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      {pkg.categories ? pkg.categories.reduce((sum, c) => sum + c.quota, 0) : (pkg.maxSelect || 0)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      {pkg.categories ? pkg.categories.reduce((sum, c) => sum + (c.items?.length || 0), 0) : (pkg.menus?.length || 0)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => openEditModal(pkg)}
+                          className="p-1 hover:bg-gray-100 rounded text-blue-600"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteMenuPackage(pkg)}
+                          className="p-1 hover:bg-gray-100 rounded text-red-600"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </div>
@@ -488,10 +565,10 @@ const MenuPackages = () => {
           pkg.maxSelect.toString().includes(searchTerm) ||
           convertDecimalValue(pkg.extraMenuPrice).toString().includes(searchTerm)
         ).length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            ไม่พบชุดที่ตรงกับเงื่อนไข
-          </div>
-        )}
+            <div className="text-center py-8 text-gray-500">
+              ไม่พบชุดที่ตรงกับเงื่อนไข
+            </div>
+          )}
       </div>
 
       {/* Create/Edit Modal */}
@@ -529,9 +606,8 @@ const MenuPackages = () => {
                         name="name"
                         value={formData.name}
                         onChange={handleInputChange}
-                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          formErrors.name ? 'border-red-500' : 'border-gray-300'
-                        }`}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.name ? 'border-red-500' : 'border-gray-300'
+                          }`}
                         placeholder="ชื่อชุด"
                       />
                       {formErrors.name && (
@@ -548,9 +624,8 @@ const MenuPackages = () => {
                         name="price"
                         value={formData.price}
                         onChange={handleInputChange}
-                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          formErrors.price ? 'border-red-500' : 'border-gray-300'
-                        }`}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.price ? 'border-red-500' : 'border-gray-300'
+                          }`}
                         placeholder="ราคา"
                         min="0"
                       />
@@ -560,137 +635,114 @@ const MenuPackages = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        จำนวนเลือกสูงสุด
-                      </label>
-                      <input
-                        type="number"
-                        name="maxSelect"
-                        value={formData.maxSelect}
-                        onChange={handleInputChange}
-                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          formErrors.maxSelect ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        placeholder="จำนวนเลือกสูงสุดที่ลูกค้าสามารถเลือกได้"
-                        min="1"
-                      />
-                      {formErrors.maxSelect && (
-                        <p className="mt-1 text-sm text-red-600">{formErrors.maxSelect}</p>
-                      )}
-                    </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        ราคาเมนูเพิ่มเติม
-                      </label>
-                      <input
-                        type="number"
-                        name="extraMenuPrice"
-                        value={formData.extraMenuPrice}
-                        onChange={handleInputChange}
-                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          formErrors.extraMenuPrice ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        placeholder="ราคาต่อหนึ่งเมนูเพิ่มเติม"
-                        min="0"
-                      />
-                      {formErrors.extraMenuPrice && (
-                        <p className="mt-1 text-sm text-red-600">{formErrors.extraMenuPrice}</p>
-                      )}
-                    </div>
-                  </div>
+                  <div className="space-y-6">
+                    {formData.categories && formData.categories.map((category, index) => {
+                      // Filter menus for this category
+                      const catMenus = menuService.getAllMenus ? menus.filter(m => (m.category === category.name || m.category === CATEGORY_NAMES[category.name])) : menus.filter(m => m.category === category.name);
+                      // Note: Ensure mapping logic matches how menus are categorized.
+                      // The `menus` state contains all menus. `m.category` should match `category.name` (e.g. 'appetizer').
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      คำอธิบาย
-                    </label>
-                    <textarea
-                      name="description"
-                      value={formData.description}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="คำอธิบาย"
-                      rows="3"
-                    />
-                  </div>
+                      // Filter menus that match the current category name
+                      const availableMenus = menus.filter(m => m.category === category.name);
 
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="block text-sm font-medium text-gray-700">
-                        เมนูที่รวมอยู่
-                      </label>
-                      <span className="text-sm text-gray-600">
-                        เลือกแล้ว: {formData.menus.length}/{formData.maxSelect}
-                      </span>
-                    </div>
-                    <div className="border border-gray-300 rounded-lg max-h-60 overflow-y-auto">
-                      {menus.length === 0 ? (
-                        <div className="p-4 text-center text-gray-500">
-                          ไม่มีรายการเมนู
-                        </div>
-                      ) : (
-                        <div className="p-2">
-                          {/* Group menus by category */}
-                          {groupMenusByCategory(menus).map(([category, categoryMenus]) => (
-                            <div key={category} className="mb-3">
-                              <h5 className="font-semibold text-gray-800 mb-2 capitalize">{category}</h5>
-                              <div className="space-y-1">
-                                {categoryMenus.map(menu => (
-                                  <div
-                                    key={menu._id}
-                                    className={`flex items-center p-2 rounded cursor-pointer ${
-                                      formData.menus.includes(menu._id)
-                                        ? 'bg-blue-100 border border-blue-300'
-                                        : 'hover:bg-gray-50 border border-gray-200'
-                                    } ${formData.menus.length >= formData.maxSelect && !formData.menus.includes(menu._id) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                    onClick={() => handleMenuSelect(menu._id)}
-                                  >
-                                    <div className="flex items-center">
-                                      <input
-                                        type="checkbox"
-                                        checked={formData.menus.includes(menu._id)}
-                                        readOnly
-                                        className="mr-2"
-                                      />
-                                      <span className="text-sm">{menu.code} {menu.name}</span>
-                                    </div>
-                                      <span className="ml-auto text-xs text-gray-500">{formatPriceWithCurrency(menu.packagePrice)}</span>
-                                  </div>
-                                ))}
-                              </div>
+                      return (
+                        <div key={category.name} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                          <div className="flex justify-between items-center mb-3">
+                            <h4 className="font-semibold text-gray-800 capitalize">
+                              {CATEGORY_NAMES[category.name] || category.name}
+                            </h4>
+
+                            <div className="flex items-center space-x-2">
+                              <label className="text-sm text-gray-600">ราคาเพิ่ม (บาท):</label>
+                              <input
+                                type="number"
+                                min="0"
+                                className="w-20 px-2 py-1 border rounded text-sm text-center"
+                                value={category.extraPrice || 200}
+                                onChange={(e) => handleCategoryExtraPriceChange(index, e.target.value)}
+                              />
                             </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs text-gray-500">คลิกที่รายการเมนูเพื่อเลือกสำหรับนี้</p>
-                  </div>
-                </div>
+                            <div className="flex items-center space-x-2">
+                              <label className="text-sm text-gray-600">เลือกได้ (รายการ):</label>
+                              <input
+                                type="number"
+                                min="0"
+                                className="w-20 px-2 py-1 border rounded text-sm text-center"
+                                value={category.quota}
+                                onChange={(e) => handleCategoryQuotaChange(index, e.target.value)}
+                              />
+                            </div>
+                          </div>
 
-                <div className="mt-6 flex justify-end space-x-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                  >
-                    ยกเลิก
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white flex items-center"
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    {currentPackage ? 'อัปเดต' : 'สร้าง'}
-                  </button>
+                          <div className="bg-white border border-gray-200 rounded-md p-2 max-h-48 overflow-y-auto">
+                            {availableMenus.length === 0 ? (
+                              <p className="text-sm text-gray-500 text-center py-2">ไม่มีเมนูในหมวดหมู่นี้</p>
+                            ) : (
+                              <div className="space-y-1">
+                                {availableMenus.map(menu => {
+                                  const isSelected = category.items.some(item => item.menu === menu._id);
+                                  const isDefault = category.items.find(item => item.menu === menu._id)?.isDefault || false;
+
+                                  return (
+                                    <div key={menu._id} className={`flex items-center justify-between p-2 rounded ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-100'}`}>
+                                      <div className="flex items-center flex-1 cursor-pointer" onClick={() => handleMenuItemToggle(index, menu._id)}>
+                                        <input
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          readOnly
+                                          className="mr-3 h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                                        />
+                                        <span className="text-sm text-gray-700">{menu.code} - {menu.name}</span>
+                                      </div>
+
+                                      {isSelected && (
+                                        <div className="flex items-center pl-4 border-l ml-4">
+                                          <label className="flex items-center space-x-2 cursor-pointer text-xs text-gray-600 hover:text-blue-600">
+                                            <input
+                                              type="checkbox"
+                                              checked={isDefault}
+                                              onChange={() => handleSetDefaultItem(index, menu._id)}
+                                              className="text-blue-600 focus:ring-blue-500 rounded"
+                                            />
+                                            <span>แนะนำ/เริ่มต้น</span>
+                                          </label>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-6 flex justify-end space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowModal(false)}
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                    >
+                      ยกเลิก
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white flex items-center"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      {currentPackage ? 'อัปเดต' : 'สร้าง'}
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>
           </div>
-        </div>
+        </div >
       )}
-    </div>
+    </div >
   );
 };
 

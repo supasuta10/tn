@@ -20,7 +20,7 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true, // Ensures uniqueness
-      default: function() {
+      default: function () {
         return generateBookingCode();
       },
       index: true
@@ -94,8 +94,10 @@ const bookingSchema = new mongoose.Schema(
 
     menu_sets: [
       {
+        menuID: { type: mongoose.Schema.Types.ObjectId, ref: "Menu" },
         menu_name: { type: String, required: true },
-        quantity: { type: Number, required: true }
+        category: { type: String }, // Store category at time of booking
+        quantity: { type: Number, required: true, default: 1 }
       }
     ],
 

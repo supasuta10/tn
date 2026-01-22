@@ -595,7 +595,7 @@ const BookingDetails = () => {
                                     <>
                                         <button
                                             onClick={() => cancelBooking(booking._id, booking.bookingCode)}
-                                            className="btn w-full border border-red-500 text-red-500 hover:bg-red-50">
+                                            className="btn w-full bg-white border border-red-500 text-red-500 hover:bg-red-50 hover:border-red-600">
                                             ยกเลิกการจอง
                                         </button>
                                         <button

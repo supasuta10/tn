@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const bookingModel = require('../models/bookingModel');
 const userModel = require('../models/userModel');
 const ReviewModel = require('../models/reviewModel');
+const MenuModel = require('../models/menuModel');
 const { sendLineMessage } = require('../middleware/lineMessage');
 const { LINE_USER_ID } = require('../utils/constants');
 
@@ -9,7 +10,7 @@ const { LINE_USER_ID } = require('../utils/constants');
 const getCustomerDashboardSummary = async (req, res) => {
     try {
         const customerId = req.user._id;
-        
+
         // Get customer profile info
         const customer = await userModel.findById(customerId).select("-password");
         if (!customer) {
@@ -18,7 +19,7 @@ const getCustomerDashboardSummary = async (req, res) => {
 
         // Get customer's booking count
         const bookingCount = await bookingModel.countDocuments({ 'customer.customerID': customerId });
-        
+
         // Get customer's recent bookings (up to 5)
         const recentBookings = await bookingModel.find({ 'customer.customerID': customerId })
             .sort({ createdAt: -1 })
@@ -76,14 +77,14 @@ const getCustomerBookings = async (req, res) => {
         const { status } = req.query;
 
         let query = { 'customer.customerID': customerId };
-        
+
         if (status) {
             query.payment_status = status;
         }
 
         const bookings = await bookingModel.find(query)
             .sort({ createdAt: -1 })
-            // .select('package.package_name event_datetime table_count payment_status total_price createdAt');
+        // .select('package.package_name event_datetime table_count payment_status total_price createdAt');
 
         res.status(200).json({ data: bookings });
 
@@ -97,7 +98,7 @@ const getCustomerBookings = async (req, res) => {
 const getCustomerProfile = async (req, res) => {
     try {
         const customerId = req.user._id;
-        
+
         const customer = await userModel.findById(customerId).select("-password");
         if (!customer) {
             return res.status(404).json({ message: "ไม่พบผู้ใช้งาน" });
@@ -134,7 +135,7 @@ const updateCustomerProfile = async (req, res) => {
                         ? "Username นี้ถูกใช้งานแล้ว"
                         : existingUser.email === email
                             ? "อีเมลนี้ถูกใช้งานแล้ว"
-                        : "เบอร์โทรนี้ถูกใช้งานแล้ว"
+                            : "เบอร์โทรนี้ถูกใช้งานแล้ว"
             });
         }
 
@@ -188,11 +189,11 @@ const cancelCustomerBooking = async (req, res) => {
 
         // Send LINE notification about cancellation
         const cancelMessage =
-          `❌ ยกเลิกการจองแล้ว\n\n` +
-          `🔖 Booking Code: ${booking.bookingCode}\n` +
-          `👤 ลูกค้า: ${booking.customer.name}\n` +
-          `📞 เบอร์: ${booking.customer.phone}\n` +
-          `📅 วันงาน: ${new Date(booking.event_datetime).toLocaleString("th-TH")}`;
+            `❌ ยกเลิกการจองแล้ว\n\n` +
+            `🔖 Booking Code: ${booking.bookingCode}\n` +
+            `👤 ลูกค้า: ${booking.customer.name}\n` +
+            `📞 เบอร์: ${booking.customer.phone}\n` +
+            `📅 วันงาน: ${new Date(booking.event_datetime).toLocaleString("th-TH")}`;
 
         await sendLineMessage(LINE_USER_ID, cancelMessage);
 
@@ -340,35 +341,68 @@ const updateBookingMenuSets = async (req, res) => {
             return res.status(400).json({ message: "รูปแบบข้อมูลเมนูไม่ถูกต้อง" });
         }
 
-        // Check menu limits
-        const totalSelected = menu_sets.length;
-        const maxSelect = menuPackage.maxSelect || 8;
-        const extraMenuPrice = parseFloat(menuPackage.extraMenuPrice || 200);
+        // ----------------------------------------------------------------------
+        // Logic ใหม่: คำนวณตาม Conditions รายหมวดหมู่
+        // ----------------------------------------------------------------------
 
-        // ตรวจสอบราคาแพ็กเกจเพื่อจำกัดจำนวนเมนูพิเศษ
-        const packagePrice = parseFloat(menuPackage.price.toString());
-        const isSpecialRange = packagePrice >= 3000 && packagePrice <= 3500;
-        const maxAllowed = isSpecialRange ? maxSelect + 3 : maxSelect + 2; // สำหรับช่วง 3000-3500 อนุญาตให้เลือกได้มากขึ้น
+        // 1. Prepare enriched menu sets
+        let enrichedMenuSets = [];
+        let totalPrice = parseFloat(booking.package.price_per_table.toString()) * booking.table_count;
 
-        if (totalSelected > maxAllowed) {
-            return res.status(400).json({
-                message: isSpecialRange
-                    ? `สามารถเลือกเมนูได้สูงสุด ${maxAllowed} อย่าง (แพ็กเกจปกติ ${maxSelect} อย่าง + เมนูพิเศษ 1 อย่าง + เพิ่มได้อีก 2 อย่าง)`
-                    : `สามารถเลือกเมนูได้สูงสุด ${maxAllowed} อย่าง (แพ็กเกจปกติ ${maxSelect} อย่าง + เพิ่มได้อีก 2 อย่าง)`
+        if (menu_sets && menu_sets.length > 0) {
+            // Collect all menu names to fetch details
+            const menuNames = menu_sets.map(m => m.menu_name);
+            const foundMenus = await MenuModel.find({ name: { $in: menuNames } });
+
+            const menuMap = {};
+            foundMenus.forEach(m => {
+                menuMap[m.name] = m;
             });
+
+            // Group selected counts by category
+            const categoryCounts = {};
+
+            // Process menu_sets
+            enrichedMenuSets = menu_sets.map(item => {
+                const menuDetails = menuMap[item.menu_name];
+                let category = 'unknown';
+
+                if (menuDetails) {
+                    category = menuDetails.category;
+                }
+
+                // Update count
+                if (!categoryCounts[category]) categoryCounts[category] = 0;
+                categoryCounts[category] += (item.quantity || 1);
+
+                return {
+                    menuID: menuDetails ? menuDetails._id : null,
+                    menu_name: item.menu_name,
+                    category: category,
+                    quantity: item.quantity || 1
+                };
+            });
+
+            // Calculate extra cost based on package conditions
+            if (menuPackage.conditions && menuPackage.conditions.length > 0) {
+                menuPackage.conditions.forEach(condition => {
+                    const cat = condition.category;
+                    const quota = condition.quota || 0;
+                    const extraPrice = parseFloat((condition.extraPrice || 0).toString());
+
+                    const selectedCount = categoryCounts[cat] || 0;
+
+                    if (selectedCount > quota) {
+                        const extraItems = selectedCount - quota;
+                        const extraCost = extraItems * extraPrice * booking.table_count;
+                        totalPrice += extraCost;
+                    }
+                });
+            }
         }
 
         // Update menu sets
-        booking.menu_sets = menu_sets;
-
-        // Calculate additional cost if any
-        let totalPrice = parseFloat(booking.package.price_per_table.toString()) * booking.table_count;
-
-        if (totalSelected > maxSelect) {
-            const extraMenus = totalSelected - maxSelect;
-            const extraCost = extraMenus * extraMenuPrice * booking.table_count;
-            totalPrice += extraCost;
-        }
+        booking.menu_sets = enrichedMenuSets.length > 0 ? enrichedMenuSets : menu_sets;
 
         // Recalculate total price
         booking.total_price = new mongoose.Types.Decimal128(totalPrice.toString());

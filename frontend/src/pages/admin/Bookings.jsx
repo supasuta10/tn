@@ -441,7 +441,12 @@ const Bookings = () => {
       setSelectedMenus(prev => prev.filter(selected => selected._id !== menu._id));
     } else {
       // Add menu if not selected
-      setSelectedMenus(prev => [...prev, { _id: menu._id, menu_name: menu.name, quantity: 1 }]);
+      setSelectedMenus(prev => [...prev, {
+        _id: menu._id,
+        menu_name: menu.name,
+        quantity: 1,
+        category: menu.category
+      }]);
     }
   };
 
@@ -463,6 +468,7 @@ const Bookings = () => {
     // Define category display names in Thai
     const categoryNames = {
       'appetizer': 'ออเดิร์ฟ',
+      'special': 'เมนูพิเศษ',
       'soup': 'ซุป',
       'maincourse': 'จานหลัก',
       'carb': 'ข้าว/เส้น',
@@ -471,7 +477,7 @@ const Bookings = () => {
     };
 
     // Initialize all categories in the required order
-    const orderedCategories = ['appetizer', 'soup', 'maincourse', 'carb', 'curry', 'dessert'];
+    const orderedCategories = ['appetizer', 'special', 'soup', 'maincourse', 'carb', 'curry', 'dessert'];
     orderedCategories.forEach(category => {
       const categoryName = categoryNames[category];
       grouped[categoryName] = [];
@@ -974,13 +980,140 @@ const Bookings = () => {
                     </div>
                     <div className="flex">
                       <span className="font-medium w-32 text-gray-600">ชุดอาหาร:</span>
-                      <div className="text-gray-800">
+                      <div className="text-gray-800 flex-1">
                         {selectedBooking.menu_sets && selectedBooking.menu_sets.length > 0 ? (
-                          selectedBooking.menu_sets.map((set, index) => (
-                            <div key={index} className="text-sm">{set.menu_name} ({set.quantity})</div>
-                          ))
+                          (() => {
+                            // Group menus by category for display
+                            const menusByCategory = {};
+                            const categoryNames = {
+                              'appetizer': 'ออเดิร์ฟ',
+                              'soup': 'ซุป',
+                              'maincourse': 'จานหลัก',
+                              'carb': 'ข้าว/เส้น',
+                              'curry': 'ต้ม/แกง',
+                              'dessert': 'ของหวาน',
+                              'special': 'เมนูพิเศษ'
+                            };
+                            const orderedCategories = ['appetizer', 'soup', 'maincourse', 'carb', 'curry', 'dessert', 'special'];
+
+                            selectedBooking.menu_sets.forEach(set => {
+                              const cat = set.category || 'other';
+                              if (!menusByCategory[cat]) menusByCategory[cat] = [];
+                              menusByCategory[cat].push(set);
+                            });
+
+                            return (
+                              <div className="space-y-2 mt-1">
+                                {orderedCategories.map(cat => {
+                                  if (!menusByCategory[cat]) return null;
+                                  return (
+                                    <div key={cat}>
+                                      <div className="text-xs font-semibold text-gray-500 mb-1">{categoryNames[cat] || cat}</div>
+                                      <ul className="list-disc pl-4 text-sm">
+                                        {menusByCategory[cat].map((menu, idx) => (
+                                          <li key={idx} className="text-gray-700">
+                                            {menu.menu_name} ({menu.quantity})
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  );
+                                })}
+                                {/* Handle 'other' category or unknown categories */}
+                                {Object.keys(menusByCategory).filter(c => !orderedCategories.includes(c)).map(cat => (
+                                  <div key={cat}>
+                                    <div className="text-xs font-semibold text-gray-500 mb-1">{cat}</div>
+                                    <ul className="list-disc pl-4 text-sm">
+                                      {menusByCategory[cat].map((menu, idx) => (
+                                        <li key={idx} className="text-gray-700">
+                                          {menu.menu_name} ({menu.quantity})
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()
                         ) : (
                           'ไม่ระบุ'
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* AI Insights Section */}
+                  <div className="mt-4 bg-gradient-to-r from-purple-50 to-blue-50 p-3 rounded-lg border border-purple-200">
+                    <div className="flex items-center mb-2">
+                      <span className="text-lg mr-2">🤖</span>
+                      <h5 className="text-sm font-semibold text-purple-700">AI Insights</h5>
+                    </div>
+
+                    {/* Distance Calculation */}
+                    <div className="mb-3">
+                      <div className="flex items-center mb-1">
+                        <span className="text-sm mr-1">📍</span>
+                        <span className="text-xs font-medium text-gray-700">ระยะทางจากร้าน:</span>
+                      </div>
+                      {selectedBooking.location?.latitude && selectedBooking.location?.longitude ? (
+                        <div className="bg-white p-2 rounded border border-purple-100">
+                          {(() => {
+                            const originLat = 13.8250280;
+                            const originLng = 100.0274870;
+                            const destLat = selectedBooking.location.latitude;
+                            const destLng = selectedBooking.location.longitude;
+                            const R = 6371;
+                            const dLat = (destLat - originLat) * Math.PI / 180;
+                            const dLon = (destLng - originLng) * Math.PI / 180;
+                            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                              Math.cos(originLat * Math.PI / 180) * Math.cos(destLat * Math.PI / 180) *
+                              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                            const distance = R * c;
+                            return (
+                              <div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-gray-600">ระยะทาง:</span>
+                                  <span className="text-lg font-bold text-purple-600">{distance.toFixed(2)} กม.</span>
+                                </div>
+                                <div className="mt-1 text-xs text-gray-500">
+                                  <div>📌 ร้าน → จุดหมาย</div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      ) : (
+                        <div className="bg-white p-2 rounded border border-gray-200 text-gray-500 text-xs">
+                          ไม่มีข้อมูลพิกัด
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Ingredients Estimation */}
+                    <div>
+                      <div className="flex items-center mb-1">
+                        <span className="text-sm mr-1">🥬</span>
+                        <span className="text-xs font-medium text-gray-700">วัตถุดิบที่ต้องใช้:</span>
+                      </div>
+                      <div className="bg-white p-2 rounded border border-purple-100">
+                        {selectedBooking.table_count ? (
+                          <div>
+                            <div className="text-xs text-gray-500 mb-1">
+                              สำหรับ {selectedBooking.table_count} โต๊ะ (~{selectedBooking.table_count * 10} ท่าน)
+                            </div>
+                            <div className="grid grid-cols-2 gap-1 text-xs">
+                              <div>• ข้าวสวย: {selectedBooking.table_count * 2} กก.</div>
+                              <div>• เนื้อหมู: {selectedBooking.table_count * 1.5} กก.</div>
+                              <div>• ไก่: {selectedBooking.table_count * 2} กก.</div>
+                              <div>• กุ้ง: {selectedBooking.table_count * 1} กก.</div>
+                              <div>• ปลา: {selectedBooking.table_count * 1.5} กก.</div>
+                              <div>• ผักรวม: {selectedBooking.table_count * 3} กก.</div>
+                            </div>
+                            <div className="mt-1 text-xs text-purple-600">💡 ประมาณการเบื้องต้น</div>
+                          </div>
+                        ) : (
+                          <div className="text-gray-500 text-xs">ไม่มีข้อมูลจำนวนโต๊ะ</div>
                         )}
                       </div>
                     </div>
@@ -1109,8 +1242,8 @@ const Bookings = () => {
                                     <div
                                       key={menu._id}
                                       className={`flex items-center p-3 rounded-lg cursor-pointer ${isSelected
-                                          ? 'bg-blue-100 border border-blue-300'
-                                          : 'bg-gray-50 hover:bg-gray-100 border border-gray-200'
+                                        ? 'bg-blue-100 border border-blue-300'
+                                        : 'bg-gray-50 hover:bg-gray-100 border border-gray-200'
                                         }`}
                                       onClick={() => handleMenuSelection(menu)}
                                     >
@@ -1163,22 +1296,75 @@ const Bookings = () => {
                           ยังไม่มีเมนูที่เลือก
                         </div>
                       ) : (
-                        <div className="space-y-2">
-                          {selectedMenus.map((menu, index) => (
-                            <div key={index} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
-                              <div className="flex-1">
-                                <div className="font-medium">{menu.menu_name}</div>
-                                <div className="text-sm text-gray-600">จำนวน: {menu.quantity}</div>
-                              </div>
-                              <button
-                                onClick={() => handleMenuSelection(menu)}
-                                className="text-red-600 hover:text-red-800"
-                              >
-                                <X className="w-5 h-5" />
-                              </button>
+                        (() => {
+                          const grouped = {};
+                          selectedMenus.forEach(m => {
+                            const cat = m.category || 'other';
+                            if (!grouped[cat]) grouped[cat] = [];
+                            grouped[cat].push(m);
+                          });
+
+                          const categoryNames = {
+                            'appetizer': 'ออเดิร์ฟ',
+                            'soup': 'ซุป',
+                            'maincourse': 'จานหลัก',
+                            'carb': 'ข้าว/เส้น',
+                            'curry': 'ต้ม/แกง',
+                            'dessert': 'ของหวาน',
+                            'special': 'เมนูพิเศษ'
+                          };
+                          const orderedCategories = ['appetizer', 'soup', 'maincourse', 'carb', 'curry', 'dessert', 'special'];
+
+                          return (
+                            <div className="space-y-4">
+                              {orderedCategories.map(cat => {
+                                if (!grouped[cat]) return null;
+                                return (
+                                  <div key={cat}>
+                                    <h5 className="font-semibold text-gray-800 mb-2 border-b pb-1 text-sm">{categoryNames[cat] || cat}</h5>
+                                    <div className="space-y-2">
+                                      {grouped[cat].map((menu) => (
+                                        <div key={menu._id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                          <div className="flex-1">
+                                            <div className="font-medium">{menu.menu_name}</div>
+                                            <div className="text-sm text-gray-600">จำนวน: {menu.quantity}</div>
+                                          </div>
+                                          <button
+                                            onClick={() => handleMenuSelection(menu)}
+                                            className="text-red-600 hover:text-red-800"
+                                          >
+                                            <X className="w-5 h-5" />
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                              {Object.keys(grouped).filter(c => !orderedCategories.includes(c)).map(cat => (
+                                <div key={cat}>
+                                  <h5 className="font-semibold text-gray-800 mb-2 border-b pb-1 text-sm">{cat}</h5>
+                                  <div className="space-y-2">
+                                    {grouped[cat].map((menu) => (
+                                      <div key={menu._id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                        <div className="flex-1">
+                                          <div className="font-medium">{menu.menu_name}</div>
+                                          <div className="text-sm text-gray-600">จำนวน: {menu.quantity}</div>
+                                        </div>
+                                        <button
+                                          onClick={() => handleMenuSelection(menu)}
+                                          className="text-red-600 hover:text-red-800"
+                                        >
+                                          <X className="w-5 h-5" />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
+                          );
+                        })()
                       )}
                     </div>
                   </div>

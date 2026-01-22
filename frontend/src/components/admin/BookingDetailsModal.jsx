@@ -202,7 +202,113 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
             </div>
           </div>
 
-          {/* Payment Information */}
+          {/* AI Insights Section */}
+          <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg border border-purple-200 mb-6">
+            <div className="flex items-center mb-3">
+              <span className="text-2xl mr-2">🤖</span>
+              <h4 className="text-lg font-semibold text-purple-700">AI Insights</h4>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Distance Calculation */}
+              <div>
+                <div className="flex items-center mb-2">
+                  <span className="text-xl mr-2">📍</span>
+                  <span className="font-medium text-gray-700">ระยะทางจากร้าน:</span>
+                </div>
+                {booking.location?.latitude && booking.location?.longitude ? (
+                  <div className="bg-white p-3 rounded-lg border border-purple-100">
+                    {(() => {
+                      const originLat = 13.8250280;
+                      const originLng = 100.0274870;
+                      const destLat = booking.location.latitude;
+                      const destLng = booking.location.longitude;
+
+                      const R = 6371;
+                      const dLat = (destLat - originLat) * Math.PI / 180;
+                      const dLon = (destLng - originLng) * Math.PI / 180;
+                      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                        Math.cos(originLat * Math.PI / 180) * Math.cos(destLat * Math.PI / 180) *
+                        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                      const distance = R * c;
+
+                      return (
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">ระยะทาง:</span>
+                            <span className="text-xl font-bold text-purple-600">{distance.toFixed(2)} กม.</span>
+                          </div>
+                          <div className="mt-2 text-xs text-gray-500">
+                            <div>📌 ร้าน: (13.8250, 100.0275)</div>
+                            <div>📌 จุดหมาย: ({destLat.toFixed(4)}, {destLng.toFixed(4)})</div>
+                          </div>
+                          {distance > 30 && (
+                            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700">
+                              ⚠️ ระยะทาง {'>'} 30 กม. อาจมีค่าขนส่งเพิ่ม
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <div className="bg-white p-3 rounded-lg border border-gray-200 text-gray-500 text-sm">
+                    ไม่มีข้อมูลพิกัด
+                  </div>
+                )}
+              </div>
+
+              {/* Ingredients Estimation */}
+              <div>
+                <div className="flex items-center mb-2">
+                  <span className="text-xl mr-2">🥬</span>
+                  <span className="font-medium text-gray-700">วัตถุดิบที่ต้องใช้:</span>
+                </div>
+                <div className="bg-white p-3 rounded-lg border border-purple-100">
+                  {booking.table_count ? (
+                    <div>
+                      <div className="text-xs text-gray-500 mb-2">
+                        สำหรับ {booking.table_count} โต๊ะ (~{booking.table_count * 10} ท่าน)
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 text-xs">
+                        <div className="flex items-center">
+                          <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                          ข้าวสวย: {booking.table_count * 2} กก.
+                        </div>
+                        <div className="flex items-center">
+                          <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                          เนื้อหมู: {booking.table_count * 1.5} กก.
+                        </div>
+                        <div className="flex items-center">
+                          <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                          ไก่: {booking.table_count * 2} กก.
+                        </div>
+                        <div className="flex items-center">
+                          <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                          กุ้ง: {booking.table_count * 1} กก.
+                        </div>
+                        <div className="flex items-center">
+                          <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                          ปลา: {booking.table_count * 1.5} กก.
+                        </div>
+                        <div className="flex items-center">
+                          <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                          ผักรวม: {booking.table_count * 3} กก.
+                        </div>
+                      </div>
+                      <div className="mt-2 p-1 bg-purple-50 rounded text-xs text-purple-600">
+                        💡 ประมาณการเบื้องต้น
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-gray-500 text-sm">ไม่มีข้อมูลจำนวนโต๊ะ</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="bg-gray-50 p-4 rounded-lg mb-6">
             <h4 className="text-lg font-semibold text-gray-700 mb-3">ข้อมูลการชำระเงิน</h4>
             <div className="space-y-2">
@@ -252,7 +358,7 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                                 <img
                                   src={`http://localhost:8080${payment.slip_image}`}
                                   alt={payment.name}
-                                  className="rounded-md object-cover w-3xl"
+                                  className="rounded-md object-cover h-40 w-auto mt-2 border border-gray-200"
                                 />
                               </div>
                             )}

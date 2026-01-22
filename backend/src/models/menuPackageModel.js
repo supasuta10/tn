@@ -1,44 +1,57 @@
 const mongoose = require("mongoose");
-const Decimal128 = mongoose.Types.Decimal128; 
+const Decimal128 = mongoose.Types.Decimal128;
 
 const menuPackageSchema = new mongoose.Schema(
   {
-    name: { 
-        type: String,
-        required: [true, "Package name is required"],
-        trim: true,
-        unique: true
+    name: {
+      type: String,
+      required: [true, "Package name is required"],
+      trim: true,
+      unique: true
     },
 
     price: {
-      type: Decimal128, 
-      required: true, 
+      type: Decimal128,
+      required: true,
       unique: true, // ราคาต่อโต๊ะ (เช่น 1800.00)
     },
 
-    // รายการเมนูทั้งหมดที่ package นี้ "รวมถึง" (References to Menu)
-    menus: [
+    // Categories configuration
+    categories: [
       {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Menu",
-      },
+        name: {
+          type: String,
+          required: true,
+          enum: ["appetizer", "special", "soup", "maincourse", "carb", "curry", "dessert"]
+        }, // e.g., "appetizer"
+        quota: {
+          type: Number,
+          default: 1,
+          min: 0
+        },
+        extraPrice: {
+          type: Number,
+          default: 200,
+          min: 0
+        },
+        items: [
+          {
+            menu: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "Menu"
+            },
+            isDefault: {
+              type: Boolean,
+              default: false
+            }
+          }
+        ]
+      }
     ],
 
-    // จำนวนเมนูที่ลูกค้าเลือกได้ (default = 8)
-    maxSelect: {
-      type: Number,
-      default: 8,
-      min: 1
-    },
-
-    extraMenuPrice: { 
-      type: Decimal128,
-      default: 200,
-    },
-    
     description: {
-        type: String,
-        default: ""
+      type: String,
+      default: ""
     }
   },
   { timestamps: true }

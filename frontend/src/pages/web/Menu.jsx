@@ -51,9 +51,10 @@ const Menu = () => {
   };
 
   // Get unique categories from menu items
-  const categories = ['appetizer', 'soup', 'maincourse', 'carb', 'curry', 'dessert'];
+  const categories = ['appetizer', 'special', 'soup', 'maincourse', 'carb', 'curry', 'dessert'];
   const categoryNames = {
     appetizer: "ออเดิร์ฟ",
+    special: "เมนูพิเศษ",
     soup: "ซุป",
     maincourse: "จานหลัก",
     carb: "ข้าว/เส้น",
@@ -126,7 +127,6 @@ const Menu = () => {
                     <div className="bg-gray-200 border-2 border-dashed rounded-xl w-full h-40 mb-4" />
                   )}
                   <h3 className="font-bold text-green-800 text-xl mb-2">{item.name}</h3>
-                  <p className="text-gray-600 text-sm mb-3">{item.description}</p>
                   <div className="flex justify-between items-center">
                     <button className="btn btn-sm bg-green-600 text-white hover:bg-green-700">
                       จองโต๊ะ

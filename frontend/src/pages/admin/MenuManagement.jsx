@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Search, Package, Utensils, X, Save } from 'lucide-react';
 import menuService from '../../services/MenuService';
+import menuPackageService from '../../services/MenuPackageService';
 import Swal from 'sweetalert2';
 import { formatPriceWithCurrency } from '../../utils/priceUtils';
 
@@ -14,13 +15,15 @@ const MenuManagement = () => {
   const [showModal, setShowModal] = useState(false);
   const [currentItem, setCurrentItem] = useState(null);
 
+  const [availablePackages, setAvailablePackages] = useState([]);
+
   // Form state for creating/editing
   const [formData, setFormData] = useState({
     code: '',
     name: '',
     description: '',
     category: 'appetizer',
-    packagePrice: 0,
+    // packages: [], // Removed as per request
     image: '',
     tags: []
   });
@@ -29,12 +32,22 @@ const MenuManagement = () => {
   const [formErrors, setFormErrors] = useState({});
 
   // Sample categories based on backend schema
-  const categories = ['appetizer', 'maincourse', 'carb', 'soup', 'curry', 'dessert'];
+  const categories = ['appetizer', 'special', 'maincourse', 'carb', 'soup', 'curry', 'dessert'];
 
   // Load menu items from API
   useEffect(() => {
     loadMenuItems();
+    loadPackages();
   }, []);
+
+  const loadPackages = async () => {
+    try {
+      const response = await menuPackageService.getAllMenuPackages();
+      setAvailablePackages(response.data.data || []);
+    } catch (err) {
+      console.error("Error loading packages:", err);
+    }
+  };
 
   const loadMenuItems = async () => {
     try {
@@ -80,8 +93,8 @@ const MenuManagement = () => {
       name: '',
       description: '',
       category: 'appetizer',
+      // packages: [],
       price: 0,
-      packagePrice: 0,
       image: '',
       tags: []
     });
@@ -97,7 +110,7 @@ const MenuManagement = () => {
       name: item.name || '',
       description: item.description || '',
       category: item.category || 'appetizer',
-      packagePrice: item.packagePrice || 0,
+      // packages: item.packages ? item.packages.map(p => (typeof p === 'object' ? p._id : p)) : [],
       image: item.image || '',
       tags: item.tags || []
     });
@@ -107,10 +120,9 @@ const MenuManagement = () => {
 
   // Handle form input changes
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'packagePrice' ? parseFloat(value) || 0 : value
+      [name]: value
     }));
 
     // Clear error when user starts typing
@@ -137,9 +149,7 @@ const MenuManagement = () => {
       errors.name = 'Name is required';
     }
 
-    if (formData.packagePrice < 0) {
-      errors.packagePrice = 'Package price cannot be negative';
-    }
+
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -164,7 +174,7 @@ const MenuManagement = () => {
           updateFormData.append('name', formData.name);
           updateFormData.append('description', formData.description);
           updateFormData.append('category', formData.category);
-          updateFormData.append('packagePrice', formData.packagePrice);
+          updateFormData.append('packages', JSON.stringify(formData.packages));
           updateFormData.append('image', imageFile);
           updateFormData.append('tags', JSON.stringify(formData.tags));
 
@@ -189,7 +199,7 @@ const MenuManagement = () => {
           createFormData.append('name', formData.name);
           createFormData.append('description', formData.description);
           createFormData.append('category', formData.category);
-          createFormData.append('packagePrice', formData.packagePrice);
+          createFormData.append('packages', JSON.stringify(formData.packages));
           createFormData.append('image', imageFile);
           createFormData.append('tags', JSON.stringify(formData.tags));
 
@@ -217,7 +227,7 @@ const MenuManagement = () => {
         name: '',
         description: '',
         category: 'appetizer',
-        packagePrice: 0,
+        packages: [],
         image: '',
         tags: []
       });
@@ -417,12 +427,12 @@ const MenuManagement = () => {
             {categories.map(cat => (
               <option key={cat} value={cat}>
                 {cat === 'appetizer' ? 'ของกินเล่น' :
-                 cat === 'maincourse' ? 'อาหารจานหลัก' :
-                 cat === 'carb' ? 'ข้าว/เส้น' :
-                 cat === 'soup' ? 'ซุป' :
-                 cat === 'curry' ? 'ต้ม/แกง' :
-                 cat === 'dessert' ? 'ของหวาน' :
-                 cat.charAt(0).toUpperCase() + cat.slice(1)}
+                  cat === 'maincourse' ? 'อาหารจานหลัก' :
+                    cat === 'carb' ? 'ข้าว/เส้น' :
+                      cat === 'soup' ? 'ซุป' :
+                        cat === 'curry' ? 'ต้ม/แกง' :
+                          cat === 'dessert' ? 'ของหวาน' :
+                            cat.charAt(0).toUpperCase() + cat.slice(1)}
               </option>
             ))}
           </select>
@@ -451,7 +461,7 @@ const MenuManagement = () => {
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">รหัส</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">รายการ</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">หมวดหมู่</th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">ราคา (Package)</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Packages</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">การจัดการ</th>
               </tr>
@@ -483,14 +493,26 @@ const MenuManagement = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                     {item.category === 'appetizer' ? 'ของกินเล่น' :
-                     item.category === 'maincourse' ? 'อาหารจานหลัก' :
-                     item.category === 'carb' ? 'ข้าว/เส้น' :
-                     item.category === 'soup' ? 'ซุป' :
-                     item.category === 'curry' ? 'ต้ม/แกง' :
-                     item.category === 'dessert' ? 'ของหวาน' :
-                     item.category}
+                      item.category === 'maincourse' ? 'อาหารจานหลัก' :
+                        item.category === 'carb' ? 'ข้าว/เส้น' :
+                          item.category === 'soup' ? 'ซุป' :
+                            item.category === 'curry' ? 'ต้ม/แกง' :
+                              item.category === 'dessert' ? 'ของหวาน' :
+                                item.category}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{formatPriceWithCurrency(item.packagePrice)}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-wrap gap-1">
+                      {item.packages && item.packages.length > 0 ? (
+                        item.packages.map((pkg, idx) => (
+                          <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                            {typeof pkg === 'object' ? pkg.name : 'Unknown Package'}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-gray-400">-</span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(item.active)}`}>
                       {getStatusText(item.active)}
@@ -567,9 +589,8 @@ const MenuManagement = () => {
                       name="code"
                       value={formData.code}
                       onChange={handleInputChange}
-                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                        formErrors.code ? 'border-red-500' : 'border-gray-300'
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.code ? 'border-red-500' : 'border-gray-300'
+                        }`}
                       placeholder="ป้อนรหัสรายการ"
                     />
                     {formErrors.code && (
@@ -586,9 +607,8 @@ const MenuManagement = () => {
                       name="name"
                       value={formData.name}
                       onChange={handleInputChange}
-                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                        formErrors.name ? 'border-red-500' : 'border-gray-300'
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${formErrors.name ? 'border-red-500' : 'border-gray-300'
+                        }`}
                       placeholder="ป้อนชื่อรายการเมนู"
                     />
                     {formErrors.name && (
@@ -623,38 +643,18 @@ const MenuManagement = () => {
                       {categories.map(category => (
                         <option key={category} value={category}>
                           {category === 'appetizer' ? 'ของกินเล่น' :
-                           category === 'maincourse' ? 'อาหารจานหลัก' :
-                           category === 'carb' ? 'ข้าว/เส้น' :
-                           category === 'soup' ? 'ซุป' :
-                           category === 'curry' ? 'ต้ม/แกง' :
-                           category === 'dessert' ? 'ของหวาน' :
-                           category.charAt(0).toUpperCase() + category.slice(1)}
+                            category === 'maincourse' ? 'อาหารจานหลัก' :
+                              category === 'carb' ? 'ข้าว/เส้น' :
+                                category === 'soup' ? 'ซุป' :
+                                  category === 'curry' ? 'ต้ม/แกง' :
+                                    category === 'dessert' ? 'ของหวาน' :
+                                      category.charAt(0).toUpperCase() + category.slice(1)}
                         </option>
                       ))}
                     </select>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        ราคา (Package)
-                      </label>
-                      <input
-                        type="number"
-                        name="packagePrice"
-                        value={formData.packagePrice}
-                        onChange={handleInputChange}
-                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          formErrors.packagePrice ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        min="0"
-                        step="0.01"
-                      />
-                      {formErrors.packagePrice && (
-                        <p className="mt-1 text-sm text-red-600">{formErrors.packagePrice}</p>
-                      )}
-                    </div>
-                  </div>
+                  {/* Package selection removed as per request */}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -687,7 +687,7 @@ const MenuManagement = () => {
                         <p className="text-sm text-gray-600">รูปภาพปัจจุบัน:</p>
                         <div className="mt-2">
                           <img
-                           src={`http://localhost:8080${formData.image}`}
+                            src={`http://localhost:8080${formData.image}`}
                             alt="ตัวอย่างรูปภาพ"
                             className="w-20 h-20 object-cover rounded-md"
                           />

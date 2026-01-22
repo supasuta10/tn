@@ -279,9 +279,34 @@ const CustomerBooking = () => {
     useEffect(() => {
         if (autoSelectPackageMenus && bookingData.package.packageID && allMenus.length > 0 && menuPackages.length > 0) {
             const selectedPackage = menuPackages.find(pkg => pkg._id === bookingData.package.packageID);
-            if (selectedPackage && selectedPackage.menus && selectedPackage.menus.length > 0) {
+
+            if (selectedPackage && selectedPackage.categories && selectedPackage.categories.length > 0) {
+                const defaultItems = [];
+
+                selectedPackage.categories.forEach(cat => {
+                    if (cat.items && cat.items.length > 0) {
+                        cat.items.forEach(item => {
+                            if (item.isDefault) {
+                                // Find actual menu
+                                const menuId = typeof item.menu === 'object' ? item.menu._id : item.menu;
+                                const menuObj = allMenus.find(m => m._id === menuId);
+
+                                if (menuObj) {
+                                    defaultItems.push({
+                                        menu_name: menuObj.name,
+                                        category: menuObj.category, // Use menu's real category or the package category? Package category is stricter.
+                                        quantity: 1
+                                    });
+                                }
+                            }
+                        });
+                    }
+                });
+
+                setSelectedMenuSets(defaultItems);
+            } else if (selectedPackage && selectedPackage.menus) {
+                // Fallback for legacy
                 const packageMenuItems = selectedPackage.menus.map(menuId => {
-                    // Find the actual menu object from allMenus
                     const menuObj = allMenus.find(m =>
                         typeof menuId === 'object' ? m._id === menuId._id : m._id === menuId
                     );
@@ -290,7 +315,6 @@ const CustomerBooking = () => {
                         quantity: 1
                     };
                 });
-
                 setSelectedMenuSets(packageMenuItems);
             }
         }
@@ -344,8 +368,37 @@ const CustomerBooking = () => {
                 }
             }));
 
-            // Set package menus when package is selected
-            if (selectedPackage.menus && selectedPackage.menus.length > 0) {
+            // Set package menus/selections
+            // Determine if using new Categories or old Menus
+            if (selectedPackage.categories && selectedPackage.categories.length > 0) {
+                // New Logic
+                setPackageMenus([]); // Not used in new logic much, but maybe clear it
+
+                if (autoSelectPackageMenus) {
+                    const defaultItems = [];
+                    selectedPackage.categories.forEach(cat => {
+                        if (cat.items) {
+                            cat.items.forEach(item => {
+                                if (item.isDefault) {
+                                    const menuId = typeof item.menu === 'object' ? item.menu._id : item.menu;
+                                    const menuObj = allMenus.find(m => m._id === menuId);
+                                    if (menuObj) {
+                                        defaultItems.push({
+                                            menu_name: menuObj.name,
+                                            category: menuObj.category,
+                                            quantity: 1
+                                        });
+                                    }
+                                }
+                            });
+                        }
+                    });
+                    setSelectedMenuSets(defaultItems);
+                } else {
+                    setSelectedMenuSets([]);
+                }
+            } else if (selectedPackage.menus && selectedPackage.menus.length > 0) {
+                // Legacy Logic
                 setPackageMenus(selectedPackage.menus);
 
                 // Auto-select package menus if autoSelectPackageMenus is true
@@ -379,28 +432,16 @@ const CustomerBooking = () => {
             setAutoSelectPackageMenus(false);
         }
 
-        // Check if current package is in 3000-3500 range
-        const currentPackage = menuPackages.find(pkg => pkg._id === bookingData.package.packageID);
-        const packagePrice = currentPackage ?
-            (typeof currentPackage.price === 'object' ?
-                parseFloat(currentPackage.price.$numberDecimal) :
-                parseFloat(currentPackage.price)) : 0;
-        const maxSelections = (packagePrice >= 3000) ? 11 : 10;
+        const isSelected = selectedMenuSets.some(m => m.menu_name === menu.name);
 
-        if (selectedMenuSets.length >= maxSelections) {
-            Swal.fire({
-                title: 'ไม่สามารถเลือกได้!',
-                text: `สามารถเลือกได้สูงสุด ${maxSelections} อย่างเท่านั้น`,
-                icon: 'warning',
-                confirmButtonColor: '#3085d6'
-            });
-            return;
-        }
-
-        // Check if menu is already selected
-        if (!selectedMenuSets.some(m => m.menu_name === menu.name)) {
+        if (isSelected) {
+            // New Requirement: Click again to remove
+            setSelectedMenuSets(prev => prev.filter(m => m.menu_name !== menu.name));
+        } else {
+            // Add menu if not selected (Always allow adding, we charge extra if over quota)
             setSelectedMenuSets(prev => [...prev, {
                 menu_name: menu.name,
+                category: menu.category,
                 quantity: 1
             }]);
         }
@@ -422,11 +463,64 @@ const CustomerBooking = () => {
             basePrice = parseFloat(bookingData.package.price_per_table) * parseInt(bookingData.table_count);
         }
 
-        // Calculate additional cost for menus beyond the included 8
+        // Verify package conditions
+        const pkg = menuPackages.find(p => p._id === bookingData.package.packageID);
         let additionalCost = 0;
-        if (selectedMenuSets.length > 8) {
-            const extraMenus = selectedMenuSets.length - 8;
-            additionalCost = extraMenus * 200 * bookingData.table_count; // 200 THB per extra menu per table
+
+        if (pkg && pkg.categories && pkg.categories.length > 0 && selectedMenuSets.length > 0) {
+            // New Logic: Check against category Quota
+            const categoryCounts = {};
+
+            selectedMenuSets.forEach(item => {
+                let cat = item.category;
+                if (!cat && allMenus.length > 0) {
+                    const found = allMenus.find(m => m.name === item.menu_name);
+                    if (found) cat = found.category;
+                }
+                cat = cat || 'unknown';
+                if (!categoryCounts[cat]) categoryCounts[cat] = 0;
+                categoryCounts[cat] += 1;
+            });
+
+            pkg.categories.forEach(cat => {
+                const count = categoryCounts[cat.name] || 0;
+
+                if (count > cat.quota) {
+                    const extra = count - cat.quota;
+                    // Use configured extraPrice or default to 200 if not set (legacy/default)
+                    const price = (cat.extraPrice !== undefined) ? cat.extraPrice : 200;
+                    additionalCost += extra * price * bookingData.table_count;
+                }
+            });
+        }
+        else if (pkg && pkg.conditions && pkg.conditions.length > 0 && selectedMenuSets.length > 0) {
+            // Legacy Logic
+            // ... (Same as before)
+            const categoryCounts = {};
+            selectedMenuSets.forEach(item => {
+                let cat = item.category;
+                if (!cat && allMenus.length > 0) {
+                    const found = allMenus.find(m => m.name === item.menu_name);
+                    if (found) cat = found.category;
+                }
+                cat = cat || 'unknown';
+
+                if (!categoryCounts[cat]) categoryCounts[cat] = 0;
+                categoryCounts[cat] += 1;
+            });
+
+            pkg.conditions.forEach(cond => {
+                const count = categoryCounts[cond.category] || 0;
+                if (count > cond.quota) {
+                    const extra = count - cond.quota;
+                    const price = typeof cond.extraPrice === 'object' ? parseFloat(cond.extraPrice.$numberDecimal) : parseFloat(cond.extraPrice);
+                    additionalCost += extra * price * bookingData.table_count;
+                }
+            });
+        }
+        // Fallback for packages without conditions (legacy support)
+        else if (selectedMenuSets.length > 8) {
+            // ...
         }
 
         return basePrice + additionalCost;
@@ -451,35 +545,86 @@ const CustomerBooking = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // Validate menu selection - at least 8 menus must be selected
-        // Check if current package is in 3000-3500 range for max selection validation
+        // Validate menu selection based on quotas
         const currentPackage = menuPackages.find(pkg => pkg._id === bookingData.package.packageID);
-        const packagePrice = currentPackage ?
-            (typeof currentPackage.price === 'object' ?
-                parseFloat(currentPackage.price.$numberDecimal) :
-                parseFloat(currentPackage.price)) : 0;
-        const maxSelections = (packagePrice >= 3000) ? 11 : 10;
 
-        // If auto-select is enabled, ensure we have the package menus selected
-        if (showMenuSelection && autoSelectPackageMenus && currentPackage && currentPackage.menus) {
-            // When auto-select is enabled, we should have the package menus already selected
-            // So we don't need to validate minimum selections since they're automatically selected
-        } else if (showMenuSelection && !autoSelectPackageMenus && selectedMenuSets.length < 8) {
-            // Only validate minimum selections when user is manually selecting menus
-            Swal.fire({
-                title: 'กรุณาเลือกเมนูให้ครบ!',
-                text: `ต้องเลือกอย่างน้อย 8 อย่าง (คุณเลือก ${selectedMenuSets.length} อย่าง)`,
-                icon: 'warning',
-                confirmButtonText: 'ตกลง',
-                confirmButtonColor: '#10b981'
-            });
-            return;
+        let isValid = true;
+        let errorMsg = "";
+
+        if (showMenuSelection && !autoSelectPackageMenus && currentPackage) {
+            if (currentPackage.categories && currentPackage.categories.length > 0) {
+                // Validate against Categories Quota (Min Requirement)
+                const categoryCounts = {};
+                selectedMenuSets.forEach(item => {
+                    let cat = item.category;
+                    if (!cat && allMenus.length > 0) {
+                        const found = allMenus.find(m => m.name === item.menu_name);
+                        if (found) cat = found.category;
+                    }
+                    cat = cat || 'unknown';
+                    categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+                });
+
+                currentPackage.categories.forEach(cat => {
+                    const count = categoryCounts[cat.name] || 0;
+                    if (count < cat.quota) {
+                        if (cat.quota > 0) {
+                            isValid = false;
+                            const catNames = {
+                                'appetizer': 'ออเดิร์ฟ',
+                                'special': 'เมนูพิเศษ',
+                                'soup': 'ซุป',
+                                'maincourse': 'จานหลัก',
+                                'carb': 'ข้าว/เส้น',
+                                'curry': 'ต้ม/แกง',
+                                'dessert': 'ของหวาน'
+                            };
+                            const catName = catNames[cat.name] || cat.name;
+                            errorMsg = `กรุณาเลือก ${catName} ให้ครบอย่างน้อย ${cat.quota} รายการ (เลือกแล้ว ${count})`;
+                        }
+                    }
+                    // Removal of strict Max Quota check to allow extra selections
+                });
+
+            } else if (currentPackage.conditions) {
+                // Legacy validation
+                const categoryCounts = {};
+                selectedMenuSets.forEach(item => {
+                    let cat = item.category;
+                    if (!cat && allMenus.length > 0) {
+                        const found = allMenus.find(m => m.name === item.menu_name);
+                        if (found) cat = found.category;
+                    }
+                    cat = cat || 'unknown';
+                    categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+                });
+
+                currentPackage.conditions.forEach(cond => {
+                    const count = categoryCounts[cond.category] || 0;
+                    if (count < cond.quota) {
+                        if (cond.quota > 0) {
+                            isValid = false;
+                            const catNames = {
+                                'appetizer': 'ออเดิร์ฟ',
+                                'special': 'เมนูพิเศษ',
+                                'soup': 'ซุป',
+                                'maincourse': 'จานหลัก',
+                                'carb': 'ข้าว/เส้น',
+                                'curry': 'ต้ม/แกง',
+                                'dessert': 'ของหวาน'
+                            };
+                            const catName = catNames[cond.category] || cond.category;
+                            errorMsg = `กรุณาเลือก ${catName} ให้ครบอย่างน้อย ${cond.quota} รายการ (เลือกแล้ว ${count})`;
+                        }
+                    }
+                });
+            }
         }
 
-        if (showMenuSelection && selectedMenuSets.length > maxSelections) {
+        if (!isValid && showMenuSelection && !autoSelectPackageMenus) {
             Swal.fire({
-                title: 'เลือกเมนูมากเกินไป!',
-                text: `คุณเลือกเมนูทั้งหมด ${selectedMenuSets.length} อย่าง ซึ่งเกินจำนวนสูงสุดที่อนุญาต ${maxSelections} อย่าง`,
+                title: 'เลือกเมนูไม่ครบถ้วน!',
+                text: errorMsg,
                 icon: 'warning',
                 confirmButtonText: 'ตกลง',
                 confirmButtonColor: '#10b981'
@@ -847,36 +992,20 @@ const CustomerBooking = () => {
                                                 <strong> ราคาต่อโต๊ะ:</strong> {bookingData.package.price_per_table} บาท |
                                                 <strong> จำนวนโต๊ะ:</strong> {bookingData.table_count} โต๊ะ
                                             </p>
-                                            <p className="text-blue-800 mt-1">
-                                                {(() => {
-                                                    // Check if current package is in 3000-3500 range
-                                                    const currentPackage = menuPackages.find(pkg => pkg._id === bookingData.package.packageID);
-                                                    const packagePrice = currentPackage ?
-                                                        (typeof currentPackage.price === 'object' ?
-                                                            parseFloat(currentPackage.price.$numberDecimal) :
-                                                            parseFloat(currentPackage.price)) : 0;
-                                                    const isSpecialRange = packagePrice >= 3000;
-                                                    return isSpecialRange ? (
-                                                        <span>สามารถเลือก <strong>8 อย่าง</strong> ได้ฟรี | สามารถเพิ่มได้สูงสุด <strong>อีก 2 อย่าง</strong> + <strong>เมนูพิเศษ 1 อย่าง</strong> (รวมทั้งหมด <strong>11 อย่าง</strong>)</span>
-                                                    ) : (
-                                                        <span>สามารถเลือก <strong>8 อย่าง</strong> ได้ฟรี | สามารถเพิ่มได้สูงสุด <strong>อีก 2 อย่าง</strong> (รวมทั้งหมด 10 อย่าง)</span>
-                                                    );
-                                                })()}
-                                            </p>
-                                            <p className="text-blue-800 mt-1">
-                                                <strong>ค่าอาหารเพิ่มเติม:</strong> 200 บาท/อย่าง/โต๊ะ
+                                            <p className="text-sm text-blue-800 mt-2">
+                                                <strong>เงื่อนไข:</strong> เลือกตามโควต้าของแต่ละหมวดหมู่ หากเลือกเกินจะคิดราคาเพิ่ม
                                             </p>
                                         </div>
 
                                         {/* Legend for menu highlighting */}
                                         <div className="flex flex-wrap gap-4 mt-3">
                                             <div className="flex items-center">
-                                                <div className="w-4 h-4 bg-blue-100 border border-blue-500 rounded mr-2"></div>
-                                                <span className="text-sm">เมนูในแพ็คเกจ</span>
+                                                <div className="w-4 h-4 bg-green-100 border border-green-500 rounded mr-2"></div>
+                                                <span className="text-sm">เมนูที่เลือก (ในโควต้า)</span>
                                             </div>
                                             <div className="flex items-center">
-                                                <div className="w-4 h-4 bg-green-100 border border-green-500 rounded mr-2"></div>
-                                                <span className="text-sm">เมนูที่เลือกแล้ว</span>
+                                                <div className="w-4 h-4 bg-yellow-100 border border-yellow-500 rounded mr-2"></div>
+                                                <span className="text-sm">เมนูส่วนเกิน (มีค่าใช้จ่ายเพิ่ม)</span>
                                             </div>
                                         </div>
                                     </div>
@@ -909,162 +1038,82 @@ const CustomerBooking = () => {
                                     </div>
 
                                     <div>
-                                        <label className="label text-green-700 font-medium">เลือกรายการอาหารตามหมวดหมู่ (เลือกได้ 1-2 อย่างต่อหมวด)</label>
                                         {/* Group menus by category */}
                                         {(() => {
-                                            // Check if current package is in 3000-3500 range
                                             const currentPackage = menuPackages.find(pkg => pkg._id === bookingData.package.packageID);
-                                            const packagePrice = currentPackage ?
-                                                (typeof currentPackage.price === 'object' ?
-                                                    parseFloat(currentPackage.price.$numberDecimal) :
-                                                    parseFloat(currentPackage.price)) : 0;
-                                            const isSpecialRange = packagePrice >= 3000;
 
-                                            // Special menu items for 3000-3500 range
-                                            const specialMenuItems = isSpecialRange ? [
-                                                {
-                                                    _id: 'special-1',
-                                                    name: 'ข้าวเกรียบ+เฟรนฟราย',
-                                                    description: 'เมนูพิเศษสำหรับช่วงราคา 3000 ขึ้นไป',
-                                                    category: 'special'
-                                                },
-                                                {
-                                                    _id: 'special-2',
-                                                    name: 'แปะก๊วยคั่วเกลือ',
-                                                    description: 'เมนูพิเศษสำหรับช่วงราคา 3000 ขึ้นไป',
-                                                    category: 'special'
-                                                },
-                                                {
-                                                    _id: 'special-3',
-                                                    name: 'เผือกหิมะ',
-                                                    description: 'เมนูพิเศษสำหรับช่วงราคา 3000 ขึ้นไป',
-                                                    category: 'special'
-                                                }
-                                            ] : [];
+                                            // Handle New Schema (Categories have items)
+                                            if (currentPackage && currentPackage.categories && currentPackage.categories.length > 0) {
+                                                return currentPackage.categories.map((category, index) => {
+                                                    // Resolve menu items
+                                                    const categoryMenuItems = category.items ? category.items.map(item => {
+                                                        const menuId = typeof item.menu === 'object' ? item.menu._id : item.menu;
+                                                        const menuObj = allMenus.find(m => m._id === menuId);
+                                                        if (!menuObj) return null;
+                                                        return { ...menuObj, isDefault: item.isDefault };
+                                                    }).filter(m => m !== null) : [];
 
-                                            // Get all menus from packages with prices <= selected package price (lower than or equal to)
-                                            // This includes the selected package's menus AND menus from packages with prices < X
-                                            // Use the existing currentPackage variable defined above
-                                            const currentPackagePrice = currentPackage ?
-                                                (typeof currentPackage.price === 'object' ?
-                                                    parseFloat(currentPackage.price.$numberDecimal) :
-                                                    parseFloat(currentPackage.price)) : 0;
+                                                    if (categoryMenuItems.length === 0) return null;
 
-                                            // Get all menus from packages with prices <= current package price
-                                            const eligibleMenus = new Set();
-                                            menuPackages.forEach(pkg => {
-                                                const pkgPrice = typeof pkg.price === 'object' ?
-                                                    parseFloat(pkg.price.$numberDecimal) :
-                                                    parseFloat(pkg.price);
-
-                                                if (pkgPrice <= currentPackagePrice) {
-                                                    if (pkg.menus && pkg.menus.length > 0) {
-                                                        pkg.menus.forEach(menu => {
-                                                            const menuId = typeof menu === 'object' ? menu._id : menu;
-                                                            eligibleMenus.add(menuId);
-                                                        });
-                                                    }
-                                                }
-                                            });
-
-                                            // Filter allMenus to only include eligible menus
-                                            const filteredMenus = allMenus.filter(menu =>
-                                                eligibleMenus.has(menu._id)
-                                            );
-
-                                            // Group eligible menus by category
-                                            const menusByCategory = {};
-
-                                            // Add special menu items first if in special range
-                                            if (isSpecialRange) {
-                                                menusByCategory.special = specialMenuItems;
-                                            }
-
-                                            filteredMenus.forEach(menu => {
-                                                if (!menusByCategory[menu.category]) {
-                                                    menusByCategory[menu.category] = [];
-                                                }
-                                                menusByCategory[menu.category].push(menu);
-                                            });
-
-                                            // Category names mapping
-                                            const categoryNames = {
-                                                special: "เมนูพิเศษ",
-                                                appetizer: "ออเดิร์ฟ",
-                                                soup: "ซุป",
-                                                maincourse: "จานหลัก",
-                                                carb: "ข้าว/เส้น",
-                                                curry: "ต้ม/แกง",
-                                                dessert: "ของหวาน"
-                                            };
-
-                                            // Determine max selections based on package price
-                                            const maxSelections = isSpecialRange ? 11 : 10;
-
-                                            // Define the order of categories
-                                            const orderedCategories = ['appetizer', 'soup', 'maincourse', 'carb', 'curry', 'dessert', 'special'];
-
-                                            return orderedCategories
-                                                .filter(category => menusByCategory[category] && menusByCategory[category].length > 0)
-                                                .map(category => {
-                                                    const categoryMenus = menusByCategory[category];
-                                                    // Count how many items from this category are currently selected
+                                                    // Count selected in this category
                                                     const selectedCount = selectedMenuSets.filter(selected =>
-                                                        categoryMenus.some(menu => menu.name === selected.menu_name)
+                                                        categoryMenuItems.some(m => m.name === selected.menu_name)
                                                     ).length;
 
-                                                    // Special category has limit of 1, others have limit of 2
-                                                    const categoryLimit = category === 'special' ? 1 : 2;
+                                                    const quota = category.quota || 0;
+                                                    const isOverQuota = selectedCount > quota;
+
+                                                    const catNames = {
+                                                        appetizer: "ออเดิร์ฟ",
+                                                        soup: "ซุป",
+                                                        maincourse: "จานหลัก",
+                                                        carb: "ข้าว/เส้น",
+                                                        curry: "ต้ม/แกง",
+                                                        dessert: "ของหวาน"
+                                                    };
 
                                                     return (
-                                                        <div key={category} className="mb-6">
-                                                            <h4 className="font-semibold text-green-700 mb-3 border-b pb-1">
-                                                                {categoryNames[category] || category}
-                                                                <span className="text-sm text-gray-500 ml-2">
-                                                                    (เลือกได้ {selectedCount}/{categoryLimit} อย่าง)
-                                                                </span>
-                                                            </h4>
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto p-2 border rounded">
-                                                                {categoryMenus.map(menu => {
-                                                                    const isSelected = selectedMenuSets.some(selected => selected.menu_name === menu.name);
-                                                                    // Check if this category has reached its limit
-                                                                    const isCategoryLimitReached = selectedCount >= categoryLimit && !isSelected;
+                                                        <div key={category.name || index} className="mb-6 bg-white rounded-lg border border-gray-200 overflow-hidden">
+                                                            <div className="bg-gray-50 px-4 py-3 border-b flex justify-between items-center">
+                                                                <div>
+                                                                    <h4 className="font-semibold text-green-800 text-lg capitalize">
+                                                                        {catNames[category.name] || category.name}
+                                                                    </h4>
+                                                                    <p className="text-xs text-gray-500">
+                                                                        โควต้า: {quota} รายการ {isOverQuota && <span className="text-red-500">(เลือกเพิ่ม +{(category.extraPrice || 200)} บาท/รายการ)</span>}
+                                                                    </p>
+                                                                </div>
+                                                                <div className={`px-3 py-1 rounded-full text-sm font-medium ${isOverQuota ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+                                                                    เลือกแล้ว: {selectedCount}/{quota}
+                                                                </div>
+                                                            </div>
 
-                                                                    // Check if this menu is part of the selected package
-                                                                    const isPackageMenu = packageMenus.some(pkgMenu => {
-                                                                        // Handle both object and string IDs
-                                                                        const pkgMenuId = typeof pkgMenu === 'object' ? pkgMenu._id : pkgMenu;
-                                                                        return pkgMenuId === menu._id;
-                                                                    });
+                                                            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
+                                                                {categoryMenuItems.map(menu => {
+                                                                    const isSelected = selectedMenuSets.some(selected => selected.menu_name === menu.name);
 
                                                                     return (
                                                                         <div
                                                                             key={menu._id}
                                                                             className={`p-3 border rounded-lg cursor-pointer transition-all ${isSelected
-                                                                                ? 'bg-green-100 border-green-500'
-                                                                                : isPackageMenu
-                                                                                    ? 'bg-blue-100 border-blue-500' // Highlight package menus
-                                                                                    : isCategoryLimitReached || selectedMenuSets.length >= maxSelections
-                                                                                        ? 'bg-gray-100 opacity-50 cursor-not-allowed'
-                                                                                        : 'bg-white hover:bg-gray-50 border-gray-200'
+                                                                                ? isOverQuota
+                                                                                    ? 'bg-yellow-50 border-yellow-500'
+                                                                                    : 'bg-green-50 border-green-500'
+                                                                                : 'bg-white hover:bg-gray-50 border-gray-200'
                                                                                 }`}
                                                                             onClick={() => {
-                                                                                if (!isSelected && selectedMenuSets.length < maxSelections && !isCategoryLimitReached) {
-                                                                                    addToSelectedMenu(menu);
-                                                                                }
+                                                                                addToSelectedMenu(menu);
                                                                             }}
                                                                         >
                                                                             <div className="flex justify-between items-start">
                                                                                 <div>
-                                                                                    <h4 className="font-medium text-gray-800">{menu.name}</h4>
-                                                                                    <p className="text-sm text-gray-600">{menu.description}</p>
-                                                                                    <span className="text-xs text-gray-500">{categoryNames[menu.category] || menu.category}</span>
+                                                                                    <h4 className="font-medium text-gray-800">
+                                                                                        {menu.name}
+                                                                                        {menu.isDefault && <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">แนะนำ</span>}
+                                                                                    </h4>
+                                                                                    <p className="text-sm text-gray-600 line-clamp-1">{menu.description}</p>
                                                                                 </div>
-                                                                                {isPackageMenu && (
-                                                                                    <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
-                                                                                        แพ็คเกจ
-                                                                                    </span>
-                                                                                )}
+                                                                                {isSelected && isOverQuota}
                                                                             </div>
                                                                         </div>
                                                                     );
@@ -1073,6 +1122,106 @@ const CustomerBooking = () => {
                                                         </div>
                                                     );
                                                 });
+                                            }
+
+                                            // Fallback for Legacy Data
+                                            const conditions = currentPackage.conditions || [];
+                                            let poolMenus = allMenus;
+                                            if (currentPackage.menus && currentPackage.menus.length > 0) {
+                                                poolMenus = allMenus.filter(m =>
+                                                    currentPackage.menus.some(pm =>
+                                                        (typeof pm === 'object' ? pm._id : pm) === m._id
+                                                    )
+                                                );
+                                            }
+
+                                            // Group available menus by category
+                                            const menusByCategory = {};
+                                            poolMenus.forEach(menu => {
+                                                if (!menusByCategory[menu.category]) {
+                                                    menusByCategory[menu.category] = [];
+                                                }
+                                                menusByCategory[menu.category].push(menu);
+                                            });
+
+                                            // Category names mapping
+                                            const categoryNames = {
+                                                appetizer: "ออเดิร์ฟ",
+                                                soup: "ซุป",
+                                                maincourse: "จานหลัก",
+                                                carb: "ข้าว/เส้น",
+                                                curry: "ต้ม/แกง",
+                                                dessert: "ของหวาน"
+                                            };
+
+                                            const orderedCategories = ['appetizer', 'soup', 'maincourse', 'carb', 'curry', 'dessert'];
+
+                                            return orderedCategories.map(category => {
+                                                // Find condition for this category
+                                                const condition = conditions.find(c => c.category === category) || { quota: 0, extraPrice: 200 };
+                                                const categoryMenus = menusByCategory[category] || [];
+
+                                                if (categoryMenus.length === 0) return null;
+
+                                                // Count selected in this category
+                                                const selectedCount = selectedMenuSets.filter(selected =>
+                                                    categoryMenus.some(menu => menu.name === selected.menu_name)
+                                                ).length;
+
+                                                const quota = condition.quota || 0;
+                                                const extraPrice = condition.extraPrice || 0;
+                                                const isOverQuota = selectedCount > quota;
+
+                                                return (
+                                                    <div key={category} className="mb-6 bg-white rounded-lg border border-gray-200 overflow-hidden">
+                                                        <div className="bg-gray-50 px-4 py-3 border-b flex justify-between items-center">
+                                                            <div>
+                                                                <h4 className="font-semibold text-green-800 text-lg">
+                                                                    {categoryNames[category] || category}
+                                                                </h4>
+                                                                <p className="text-xs text-gray-500">
+                                                                    โควต้า: {quota} จาน {extraPrice > 0 ? `(เพิ่มจานละ +${extraPrice} บาท)` : ''}
+                                                                </p>
+                                                            </div>
+                                                            <div className={`px-3 py-1 rounded-full text-sm font-medium ${isOverQuota ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+                                                                เลือกแล้ว: {selectedCount}/{quota}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
+                                                            {categoryMenus.map(menu => {
+                                                                const isSelected = selectedMenuSets.some(selected => selected.menu_name === menu.name);
+                                                                const isExtra = isSelected && selectedCount > quota;
+
+                                                                return (
+                                                                    <div
+                                                                        key={menu._id}
+                                                                        className={`p-3 border rounded-lg cursor-pointer transition-all ${isSelected
+                                                                            ? isOverQuota
+                                                                                ? 'bg-yellow-50 border-yellow-500' // Warn about potential cost?
+                                                                                : 'bg-green-50 border-green-500'
+                                                                            : 'bg-white hover:bg-gray-50 border-gray-200'
+                                                                            }`}
+                                                                        onClick={() => {
+                                                                            if (!isSelected) {
+                                                                                addToSelectedMenu(menu);
+                                                                            }
+                                                                        }}
+                                                                    >
+                                                                        <div className="flex justify-between items-start">
+                                                                            <div>
+                                                                                <h4 className="font-medium text-gray-800">{menu.name}</h4>
+                                                                                <p className="text-sm text-gray-600 line-clamp-1">{menu.description}</p>
+                                                                            </div>
+                                                                            {isSelected && isOverQuota}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            });
                                         })()}
                                     </div>
                                 </div>
@@ -1139,14 +1288,18 @@ const CustomerBooking = () => {
                                             {formatPrice(calculateTotalPrice())} บาท
                                         </p>
                                     </div>
-                                    {selectedMenuSets.length > 8 && (
-                                        <div className="col-span-2 mt-2">
-                                            <p className="text-sm text-gray-600">
-                                                * ประกอบด้วยเมนูเพิ่มเติม {formatNumber(selectedMenuSets.length - 8)} อย่าง
-                                                @ 200 บาท/อย่าง/โต๊ะ = {formatPrice((selectedMenuSets.length - 8) * 200 * bookingData.table_count)} บาท
-                                            </p>
-                                        </div>
-                                    )}
+                                    <div className="col-span-2 mt-2">
+                                        <p className="text-sm text-gray-600">
+                                            {(() => {
+                                                const totalWithExtras = calculateTotalPrice();
+                                                const basePrice = parseFloat(bookingData.package.price_per_table) * parseInt(bookingData.table_count);
+                                                const extraCost = totalWithExtras - basePrice;
+                                                return extraCost > 0
+                                                    ? `* รวมค่าเมนูส่วนเกิน ${formatPrice(extraCost)} บาท`
+                                                    : '* ไม่มีค่าใช้จ่ายเพิ่มเติม';
+                                            })()}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -1158,7 +1311,7 @@ const CustomerBooking = () => {
                                 id="agreement"
                                 checked={agreed}
                                 onChange={(e) => setAgreed(e.target.checked)}
-                                className="checkbox checkbox-green"
+                                className="checkbox border-green-600 checked:bg-green-600 checked:border-green-600 [--chkbg:theme(colors.green.600)] [--chkfg:white]"
                             />
                             <label htmlFor="agreement" className="label-text ml-2 text-gray-600">
                                 ฉันยอมรับ <a href="#" className="text-green-600 underline">เงื่อนไขและข้อตกลง</a> ทั้งหมด

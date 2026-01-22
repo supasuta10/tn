@@ -1,8 +1,9 @@
 const menuModel = require("../models/menuModel")
+const menuPackageModel = require("../models/menuPackageModel");
 
 exports.createMenu = async (req, res) => {
   try {
-    const { code, name, description, category, packagePrice, image, tags } = req.body;
+    const { code, name, description, category, packages, image, tags } = req.body;
 
     const exists = await menuModel.findOne({ code: code.toUpperCase() });
     if (exists) {
@@ -14,10 +15,18 @@ exports.createMenu = async (req, res) => {
       name,
       description,
       category,
-      packagePrice,
+      packages: packages || [],
       image,
       tags,
     });
+
+    // Sync with MenuPackage: Add this menu to selected packages
+    if (packages && packages.length > 0) {
+      await menuPackageModel.updateMany(
+        { _id: { $in: packages } },
+        { $addToSet: { menus: menu._id } }
+      );
+    }
 
     res.status(201).json({ message: "สร้างเมนูสำเร็จ", data: menu });
   } catch (error) {
@@ -29,7 +38,7 @@ exports.createMenu = async (req, res) => {
 // 📸 Create menu with image upload
 exports.createMenuWithImage = async (req, res) => {
   try {
-    const { code, name, description, category, packagePrice, tags } = req.body;
+    const { code, name, description, category, packages, tags } = req.body;
 
     // Check if menu with code already exists
     const exists = await menuModel.findOne({ code: code.toUpperCase() });
@@ -50,15 +59,34 @@ exports.createMenuWithImage = async (req, res) => {
       imageUrl = `/uploads/menu-images/${req.file.filename}`;
     }
 
+    // Parse packages if it comes as string (multipart/form-data)
+    let parsedPackages = [];
+    if (packages) {
+      try {
+        parsedPackages = typeof packages === 'string' ? JSON.parse(packages) : packages;
+      } catch (e) {
+        console.error("Error parsing packages:", e);
+        parsedPackages = [];
+      }
+    }
+
     const menu = await menuModel.create({
       code: code.toUpperCase(),
       name,
       description,
       category,
-      packagePrice,
+      packages: parsedPackages,
       image: imageUrl, // Save the image path
       tags,
     });
+
+    // Sync with MenuPackage: Add this menu to selected packages
+    if (parsedPackages && parsedPackages.length > 0) {
+      await menuPackageModel.updateMany(
+        { _id: { $in: parsedPackages } },
+        { $addToSet: { menus: menu._id } }
+      );
+    }
 
     res.status(201).json({ message: "สร้างเมนูสำเร็จ", data: menu });
   } catch (error) {
@@ -100,7 +128,7 @@ exports.getAllMenus = async (req, res) => {
       filter.tags = tag;
     }
 
-    const menus = await menuModel.find(filter).sort({ createdAt: -1 });
+    const menus = await menuModel.find(filter).sort({ createdAt: -1 }).populate('packages', 'name');
 
     res.status(200).json({ count: menus.length, data: menus });
   } catch (error) {
@@ -111,7 +139,7 @@ exports.getAllMenus = async (req, res) => {
 // 📌 ดึงเมนูเดียว
 exports.getMenuById = async (req, res) => {
   try {
-    const menu = await menuModel.findById(req.params.id);
+    const menu = await menuModel.findById(req.params.id).populate('packages', 'name');
 
     if (!menu) return res.status(404).json({ message: "ไม่พบเมนู" });
 
@@ -125,11 +153,40 @@ exports.getMenuById = async (req, res) => {
 exports.updateMenu = async (req, res) => {
   try {
     const id = req.params.id;
+    const { packages } = req.body;
+
+    const oldMenu = await menuModel.findById(id);
+    if (!oldMenu) return res.status(404).json({ message: "ไม่พบเมนู" });
 
     const updatedMenu = await menuModel.findByIdAndUpdate(id, req.body, {
       new: true,
       runValidators: true,
     });
+
+    // 🔄 Sync packages if they were updated
+    if (packages !== undefined) {
+      // 1. Remove menu from packages that are NO LONGER in the list
+      // diff: oldPackages - newPackages
+      const oldPackageIds = oldMenu.packages.map(p => p.toString());
+      const newPackageIds = packages; // array of strings
+
+      const toRemove = oldPackageIds.filter(pid => !newPackageIds.includes(pid));
+      const toAdd = newPackageIds.filter(pid => !oldPackageIds.includes(pid));
+
+      if (toRemove.length > 0) {
+        await menuPackageModel.updateMany(
+          { _id: { $in: toRemove } },
+          { $pull: { menus: id } }
+        );
+      }
+
+      if (toAdd.length > 0) {
+        await menuPackageModel.updateMany(
+          { _id: { $in: toAdd } },
+          { $addToSet: { menus: id } }
+        );
+      }
+    }
 
     if (!updatedMenu) {
       return res.status(404).json({ message: "ไม่พบเมนู" });
@@ -163,7 +220,17 @@ exports.updateMenuWithImage = async (req, res) => {
     }
 
     // Extract body data excluding the image
-    const { code, name, description, category, packagePrice, tags } = req.body;
+    const { code, name, description, category, packages, tags } = req.body;
+
+    // Parse packages
+    let parsedPackages = [];
+    if (packages) {
+      try {
+        parsedPackages = typeof packages === 'string' ? JSON.parse(packages) : packages;
+      } catch (e) {
+        console.error("Error parsing packages in update:", e);
+      }
+    }
 
     // Prepare update data
     const updateData = {
@@ -171,7 +238,7 @@ exports.updateMenuWithImage = async (req, res) => {
       name: name || existingMenu.name,
       description: description || existingMenu.description,
       category: category || existingMenu.category,
-      packagePrice: packagePrice !== undefined ? packagePrice : existingMenu.packagePrice,
+      packages: packages !== undefined ? parsedPackages : existingMenu.packages,
       tags: tags !== undefined ? tags : existingMenu.tags
     };
 
@@ -193,6 +260,29 @@ exports.updateMenuWithImage = async (req, res) => {
       new: true,
       runValidators: true,
     });
+
+    // 🔄 Sync packages
+    if (packages !== undefined) {
+      const oldPackageIds = existingMenu.packages.map(p => p.toString());
+      const newPackageIds = parsedPackages; // array of strings (Ids) or objects? Usually just IDs if passed from client
+
+      const toRemove = oldPackageIds.filter(pid => !newPackageIds.includes(pid));
+      const toAdd = newPackageIds.filter(pid => !oldPackageIds.includes(pid));
+
+      if (toRemove.length > 0) {
+        await menuPackageModel.updateMany(
+          { _id: { $in: toRemove } },
+          { $pull: { menus: id } }
+        );
+      }
+
+      if (toAdd.length > 0) {
+        await menuPackageModel.updateMany(
+          { _id: { $in: toAdd } },
+          { $addToSet: { menus: id } }
+        );
+      }
+    }
 
     res.status(200).json({
       message: "อัปเดตเมนูสำเร็จ",
@@ -231,6 +321,12 @@ exports.deleteMenu = async (req, res) => {
         fs.unlinkSync(imagePath);
       }
     }
+
+    // Remove this menu from all packages that have it
+    await menuPackageModel.updateMany(
+      { menus: id },
+      { $pull: { menus: id } }
+    );
 
     const deleted = await menuModel.findByIdAndDelete(id);
 

@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const BookingModel = require("../models/bookingModel");
 const MenuPackageModel = require("../models/menuPackageModel");
+const MenuModel = require("../models/menuModel");
 const { sendLineMessage } = require('../middleware/lineMessage');
 const { LINE_USER_ID } = require('../utils/constants');
 
@@ -27,15 +28,76 @@ exports.createBooking = async (req, res) => {
     const price = parseFloat(menuPackage.price.toString());
     let totalPrice = price * table_count; // Base price
 
-    // Calculate additional cost for menus beyond the included 8
+    // Prepare enriched menu sets
+    let enrichedMenuSets = [];
+
+    // Calculate additional cost based on localized conditions
     if (menu_sets && menu_sets.length > 0) {
-        const includedMenus = menuPackage.maxSelect || 8; // Default to 8 if not specified
-        if (menu_sets.length > includedMenus) {
-            const extraMenus = menu_sets.length - includedMenus;
-            const extraMenuPrice = parseFloat(menuPackage.extraMenuPrice || 200); // Default to 200 if not specified
-            const extraCost = extraMenus * extraMenuPrice * table_count; // 200 THB per extra menu per table
-            totalPrice += extraCost;
+      // Collect all menu names to fetch details
+      const menuNames = menu_sets.map(m => m.menu_name);
+      // Fetch menu details to get categories
+      const foundMenus = await MenuModel.find({ name: { $in: menuNames } });
+
+      // Map name -> menu object for easy lookup
+      const menuMap = {};
+      foundMenus.forEach(m => {
+        menuMap[m.name] = m;
+      });
+
+      // Group selected counts by category
+      const categoryCounts = {};
+
+      // Process menu_sets to enrich data and count categories
+      enrichedMenuSets = menu_sets.map(item => {
+        const menuDetails = menuMap[item.menu_name];
+        let category = 'unknown';
+
+        if (menuDetails) {
+          category = menuDetails.category;
         }
+
+        // Update count
+        if (!categoryCounts[category]) categoryCounts[category] = 0;
+        categoryCounts[category] += (item.quantity || 1);
+
+        return {
+          menuID: menuDetails ? menuDetails._id : null,
+          menu_name: item.menu_name,
+          category: category,
+          quantity: item.quantity || 1
+        };
+      });
+
+      // Calculate extra cost based on package categories
+      if (menuPackage.categories && menuPackage.categories.length > 0) {
+        menuPackage.categories.forEach(cat => {
+          const quota = cat.quota || 0;
+          const extraPrice = parseFloat((cat.extraPrice || 0).toString());
+
+          const selectedCount = categoryCounts[cat.name] || 0;
+
+          if (selectedCount > quota) {
+            const extraItems = selectedCount - quota;
+            const extraCost = extraItems * extraPrice * table_count;
+            totalPrice += extraCost;
+          }
+        });
+      } else if (menuPackage.conditions && menuPackage.conditions.length > 0) {
+        // Legacy support for conditions
+        menuPackage.conditions.forEach(condition => {
+          const cat = condition.category;
+          const quota = condition.quota || 0;
+          const extraPrice = parseFloat((condition.extraPrice || 0).toString());
+
+          const selectedCount = categoryCounts[cat] || 0;
+
+          if (selectedCount > quota) {
+            const extraItems = selectedCount - quota;
+            const extraCost = extraItems * extraPrice * table_count;
+            totalPrice += extraCost;
+          }
+        });
+      }
     }
 
     const pricePerTable = new mongoose.Types.Decimal128(price.toString());
@@ -68,7 +130,7 @@ exports.createBooking = async (req, res) => {
       event_datetime,
       table_count,
       location,
-      menu_sets: menu_sets || [],
+      menu_sets: enrichedMenuSets.length > 0 ? enrichedMenuSets : (menu_sets || []),
       specialRequest: specialRequest || "",
       deposit_required: depositRequired,
       total_price: totalPriceDecimal,
@@ -243,45 +305,88 @@ exports.updateBookingMenuSets = async (req, res) => {
       return res.status(404).json({ message: "ไม่พบการจอง" });
     }
 
-    // ตรวจสอบ menu package เพื่อเข้าถึงข้อมูล maxSelect และ extraMenuPrice
+    // ตรวจสอบ menu package เพื่อเข้าถึงข้อมูล conditions
     const menuPackage = await MenuPackageModel.findById(booking.package.packageID);
     if (!menuPackage) {
       return res.status(404).json({ message: "ไม่พบข้อมูลแพ็กเกจเมนู" });
     }
 
-    // ตรวจสอบจำนวนเมนูที่เลือก
-    const totalSelected = Array.isArray(menu_sets) ? menu_sets.length : 0;
-    const maxSelect = menuPackage.maxSelect || 8;
-    const extraMenuPrice = parseFloat(menuPackage.extraMenuPrice || 200);
+    // ----------------------------------------------------------------------
+    // Logic ใหม่: คำนวณตาม Conditions รายหมวดหมู่
+    // ----------------------------------------------------------------------
 
-    // ตรวจสอบว่าเลือกเกินจำนวนที่อนุญาตไหม
-    // ตรวจสอบราคาแพ็กเกจเพื่อจำกัดจำนวนเมนูพิเศษ
-    const packagePrice = parseFloat(menuPackage.price.toString());
-    const isSpecialRange = packagePrice >= 3000 && packagePrice <= 3500;
-    const maxAllowed = isSpecialRange ? maxSelect + 3 : maxSelect + 2; // สำหรับช่วง 3000-3500 อนุญาตให้เลือกได้มากขึ้น
-
-    if (totalSelected > maxAllowed) {
-      return res.status(400).json({
-        message: isSpecialRange
-          ? `สามารถเลือกเมนูได้สูงสุด ${maxAllowed} อย่าง (แพ็กเกจปกติ ${maxSelect} อย่าง + เมนูพิเศษ 1 อย่าง + เพิ่มได้อีก 2 อย่าง)`
-          : `สามารถเลือกเมนูได้สูงสุด ${maxAllowed} อย่าง (แพ็กเกจปกติ ${maxSelect} อย่าง + เพิ่มได้อีก 2 อย่าง)`
-      });
-    }
-
-    // อัปเดต menu_sets ใน booking
-    booking.menu_sets = menu_sets || [];
-
-    // คำนวณราคารวมใหม่ถ้ามีการเพิ่มเมนูเกินที่แพ็กเกจให้
-    // ถ้าเลือกเกิน maxSelect ให้คิดเพิ่ม extraMenuPrice ต่อเมนู คูณตามจำนวนโต๊ะ
+    // 1. Prepare enriched menu sets
+    let enrichedMenuSets = [];
     let totalPrice = parseFloat(booking.package.price_per_table.toString()) * booking.table_count;
 
-    if (totalSelected > maxSelect) {
-      const extraMenus = totalSelected - maxSelect;
-      const extraCost = extraMenus * extraMenuPrice * booking.table_count;
-      totalPrice += extraCost;
+    if (menu_sets && menu_sets.length > 0) {
+      // Collect all menu names to fetch details
+      const menuNames = menu_sets.map(m => m.menu_name);
+      const foundMenus = await MenuModel.find({ name: { $in: menuNames } });
+
+      const menuMap = {};
+      foundMenus.forEach(m => {
+        menuMap[m.name] = m;
+      });
+
+      // Group selected counts by category
+      const categoryCounts = {};
+
+      // Process menu_sets
+      enrichedMenuSets = menu_sets.map(item => {
+        const menuDetails = menuMap[item.menu_name];
+        let category = 'unknown';
+
+        if (menuDetails) {
+          category = menuDetails.category;
+        }
+
+        // Update count
+        if (!categoryCounts[category]) categoryCounts[category] = 0;
+        categoryCounts[category] += (item.quantity || 1);
+
+        return {
+          menuID: menuDetails ? menuDetails._id : null,
+          menu_name: item.menu_name,
+          category: category,
+          quantity: item.quantity || 1
+        };
+      });
+
+      // Calculate extra cost based on package categories
+      if (menuPackage.categories && menuPackage.categories.length > 0) {
+        menuPackage.categories.forEach(cat => {
+          const quota = cat.quota || 0;
+          const extraPrice = parseFloat((cat.extraPrice || 0).toString());
+
+          const selectedCount = categoryCounts[cat.name] || 0;
+
+          if (selectedCount > quota) {
+            const extraItems = selectedCount - quota;
+            const extraCost = extraItems * extraPrice * booking.table_count;
+            totalPrice += extraCost;
+          }
+        });
+      } else if (menuPackage.conditions && menuPackage.conditions.length > 0) {
+        // Legacy support
+        menuPackage.conditions.forEach(condition => {
+          const cat = condition.category;
+          const quota = condition.quota || 0;
+          const extraPrice = parseFloat((condition.extraPrice || 0).toString());
+
+          const selectedCount = categoryCounts[cat] || 0;
+
+          if (selectedCount > quota) {
+            const extraItems = selectedCount - quota;
+            const extraCost = extraItems * extraPrice * booking.table_count;
+            totalPrice += extraCost;
+          }
+        });
+      }
     }
 
-    // คำนวณราคารวมใหม่ (ราคาต่อโต๊ะ + ค่าเมนูเพิ่มเติม) * จำนวนโต๊ะ
+    // อัปเดตข้อมูลลง Booking
+    booking.menu_sets = enrichedMenuSets.length > 0 ? enrichedMenuSets : (menu_sets || []);
     booking.total_price = new mongoose.Types.Decimal128(totalPrice.toString());
 
     await booking.save();
