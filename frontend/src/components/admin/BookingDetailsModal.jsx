@@ -306,14 +306,39 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                 <div className="bg-white p-3 rounded-lg border border-purple-100">
                   {booking.ai_suggestion && booking.ai_suggestion.ingredients ? (
                     <div>
-                      <div className="text-xs text-gray-500 mb-2">
-                        จาก AI Response (ประมาณการสำหรับ {booking.table_count} โต๊ะ)
+                      <div className="text-xs text-gray-500 mb-2 flex justify-between items-center">
+                        <span>จาก AI Response (ประมาณการสำหรับ {booking.table_count} โต๊ะ)</span>
+                        {booking.ai_suggestion.ingredients.length > 6 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const btn = e.currentTarget;
+                              const content = btn.parentElement.nextElementSibling;
+                              const isExpanded = content.classList.contains('max-h-full');
+
+                              if (isExpanded) {
+                                content.classList.remove('max-h-full');
+                                content.classList.add('max-h-24');
+                                btn.innerText = 'ดูเพิ่มเติม';
+                              } else {
+                                content.classList.remove('max-h-24');
+                                content.classList.add('max-h-full');
+                                btn.innerText = 'ย่อลง';
+                              }
+                            }}
+                            className="text-purple-600 hover:text-purple-800 text-xs font-medium cursor-pointer"
+                          >
+                            ดูเพิ่มเติม
+                          </button>
+                        )}
                       </div>
-                      <div className="grid grid-cols-2 gap-1 text-xs">
+                      <div className="grid grid-cols-2 gap-1 text-xs max-h-24 overflow-hidden transition-all duration-300">
                         {booking.ai_suggestion.ingredients.map((ing, idx) => (
                           <div key={idx} className="flex items-center">
-                            <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
-                            {ing.item}: {ing.quantity} {ing.unit}
+                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1 flex-shrink-0"></span>
+                            <span className="truncate" title={`${ing.item}: ${ing.quantity} ${ing.unit}`}>
+                              {ing.item}: {ing.quantity} {ing.unit}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -426,7 +451,7 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div >
   );
 };
 

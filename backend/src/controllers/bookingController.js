@@ -278,6 +278,20 @@ exports.triggerAiCalculation = async (req, res) => {
       return res.status(500).json({ message: "N8N_WEBHOOK_URL is not configured" });
     }
 
+    // Enrich menu_sets with descriptions on-the-fly
+    const menuNames = booking.menu_sets.map(m => m.menu_name);
+    const foundMenus = await MenuModel.find({ name: { $in: menuNames } });
+    const menuMap = {};
+    foundMenus.forEach(m => { menuMap[m.name] = m; });
+
+    const enrichedMenuSets = booking.menu_sets.map(m => {
+      const details = menuMap[m.menu_name];
+      return {
+        ...m.toObject(),
+        description: details ? details.description : ''
+      };
+    });
+
     // Prepare payload for n8n AI
     const payload = {
       _id: booking._id,
@@ -285,7 +299,7 @@ exports.triggerAiCalculation = async (req, res) => {
       customer: booking.customer,
       event_datetime: booking.event_datetime,
       location: booking.location,
-      menu_sets: booking.menu_sets,
+      menu_sets: enrichedMenuSets,
       table_count: booking.table_count,
       total_price: booking.total_price ? parseFloat(booking.total_price.toString()) : 0,
       payment_status: booking.payment_status,
