@@ -35,7 +35,7 @@ const getAverageRating = () => {
     return publicInstance.get(`${API_URL}/average-rating`);
 };
 
-const reviewService = {
+const ReviewService = {
     createReview,
     getAllReviews,
     getReviewById,
@@ -46,4 +46,4 @@ const reviewService = {
     getAverageRating
 };
 
-export default reviewService;
+export default ReviewService;
