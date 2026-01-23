@@ -1,5 +1,6 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router'
+import { AuthProvider } from './context/AuthContext';
 
 import Home from './pages/web/Home'
 import Menu from './pages/web/Menu'
@@ -32,39 +33,41 @@ import BookingDetails from './pages/customer/BookingDetails'
 const App = () => {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route element={<WebLayout />}>
-          <Route path='/' element={<Home />} />
-          <Route path='/contact' element={<Contact />} />
-          <Route path='/menu' element={<Menu />} />
-          <Route path='/calendar' element={<Calendar />} />
-          <Route path='/booking' element={<Booking />} />
-          <Route path='/customer-reviews' element={<CustomerReviews />} />
-          <Route path='/login' element={<Login />} />
-          <Route path='/register' element={<Register />} />
-        </Route>
+      <AuthProvider>
+        <Routes>
+          <Route element={<WebLayout />}>
+            <Route path='/' element={<Home />} />
+            <Route path='/contact' element={<Contact />} />
+            <Route path='/menu' element={<Menu />} />
+            <Route path='/calendar' element={<Calendar />} />
+            <Route path='/booking' element={<Booking />} />
+            <Route path='/customer-reviews' element={<CustomerReviews />} />
+            <Route path='/login' element={<Login />} />
+            <Route path='/register' element={<Register />} />
+          </Route>
 
-        <Route element={<AdminLayout />}>
-          <Route path="/admin/dashboard" element={<Dashboard />} />
-          <Route path="/admin/menu" element={<MenuManagement />} />
-          <Route path="/admin/categories" element={<Categories />} />
-          <Route path="/admin/bookings" element={<Bookings />} />
-          <Route path="/admin/customers" element={<UserManagement />} />
-          <Route path="/admin/chefs" element={<UserPermissionManagement />} />
-          <Route path="/admin/menu-packages" element={<MenuPackages />} />
-          <Route path="/admin/profile" element={<MyProfile />} />
-        </Route>
+          <Route element={<AdminLayout />}>
+            <Route path="/admin/dashboard" element={<Dashboard />} />
+            <Route path="/admin/menu" element={<MenuManagement />} />
+            <Route path="/admin/categories" element={<Categories />} />
+            <Route path="/admin/bookings" element={<Bookings />} />
+            <Route path="/admin/customers" element={<UserManagement />} />
+            <Route path="/admin/chefs" element={<UserPermissionManagement />} />
+            <Route path="/admin/menu-packages" element={<MenuPackages />} />
+            <Route path="/admin/profile" element={<MyProfile />} />
+          </Route>
 
-        <Route element={<CustomerLayout />}>
-          <Route path="/customer/dashboard" element={<CustomerDashboard />} />
-          <Route path="/customer/profile" element={<CustomerProfile />} />
-          <Route path="/customer/bookings" element={<CustomerBookings />} />
-          <Route path="/customer/booking" element={<CustomerBooking />} />
-          <Route path="/customer/booking-confirmation/:id" element={<BookingConfirmation />} />
-          <Route path="/customer/booking/:id" element={<BookingDetails />} />
-        </Route>
+          <Route element={<CustomerLayout />}>
+            <Route path="/customer/dashboard" element={<CustomerDashboard />} />
+            <Route path="/customer/profile" element={<CustomerProfile />} />
+            <Route path="/customer/bookings" element={<CustomerBookings />} />
+            <Route path="/customer/booking" element={<CustomerBooking />} />
+            <Route path="/customer/booking-confirmation/:id" element={<BookingConfirmation />} />
+            <Route path="/customer/booking/:id" element={<BookingDetails />} />
+          </Route>
 
-      </Routes>
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   )
 }

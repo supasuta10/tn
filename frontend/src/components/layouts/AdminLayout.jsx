@@ -7,6 +7,13 @@ import Sidebar from '../admin/Sidebar';
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Basic Auth Check
+  const token = localStorage.getItem('token');
+  if (!token) {
+    window.location.href = '/login';
+    return null;
+  }
+
   return (
     <div className="flex h-screen bg-green-50">
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
@@ -23,7 +30,7 @@ const AdminLayout = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header setSidebarOpen={setSidebarOpen} />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-          <Outlet/>
+          <Outlet />
         </main>
       </div>
     </div>
