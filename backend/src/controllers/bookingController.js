@@ -4,6 +4,7 @@ const MenuPackageModel = require("../models/menuPackageModel");
 const MenuModel = require("../models/menuModel");
 const { sendLineMessage } = require('../middleware/lineMessage');
 const { LINE_USER_ID } = require('../utils/constants');
+const axios = require('axios');
 
 // สร้าง Booking
 exports.createBooking = async (req, res) => {
@@ -214,7 +215,9 @@ exports.getBookingById = async (req, res) => {
 exports.updateBookingStatus = async (req, res) => {
   try {
     const { status, amount, slip_image, payment_type } = req.body;
-    const booking = await BookingModel.findById(req.params.id);
+    const booking = await BookingModel.findById(req.params.id)
+      .populate("customer.customerID", "name email phone") // Populate for webhook
+      .populate("package.packageID", "name price categories"); // Populate for webhook
 
     if (!booking) {
       return res.status(404).json({ message: "ไม่พบการจอง" });
@@ -252,9 +255,80 @@ exports.updateBookingStatus = async (req, res) => {
       message: "อัปเดตสถานะการจองสำเร็จ",
       data: booking
     });
-
   } catch (error) {
     console.error("updateBookingStatus Error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Trigger AI Calculation Manually
+exports.triggerAiCalculation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const booking = await BookingModel.findById(id)
+      .populate("customer.customerID", "name email phone")
+      .populate("package.packageID", "name price categories");
+
+    if (!booking) {
+      return res.status(404).json({ message: "ไม่พบการจอง" });
+    }
+
+    const n8nUrl = process.env.N8N_WEBHOOK_URL;
+    if (!n8nUrl) {
+      return res.status(500).json({ message: "N8N_WEBHOOK_URL is not configured" });
+    }
+
+    // Prepare payload for n8n AI
+    const payload = {
+      bookingCode: booking.bookingCode,
+      customer: booking.customer,
+      event_datetime: booking.event_datetime,
+      location: booking.location,
+      menu_sets: booking.menu_sets,
+      table_count: booking.table_count,
+      total_price: booking.total_price ? parseFloat(booking.total_price.toString()) : 0,
+      payment_status: booking.payment_status,
+      timestamp: new Date().toISOString()
+    };
+
+    // Fire and forget (or await, here we just trigger it)
+    axios.post(n8nUrl, payload)
+      .then(response => console.log(`n8n Manual Trigger Success: ${response.status}`))
+      .catch(err => console.error(`n8n Manual Trigger Error: ${err.message}`));
+
+    res.status(200).json({ message: "ส่งคำขอคำนวณไปยัง AI แล้ว" });
+
+  } catch (error) {
+    console.error("triggerAiCalculation Error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+
+// อัปเดตข้อมูล AI Suggestion (สำหรับ n8n callback)
+exports.updateAiSuggestion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const aiData = req.body; // JSON object from n8n
+
+    console.log("Received AI Suggestion for Booking:", id);
+
+    const booking = await BookingModel.findByIdAndUpdate(
+      id,
+      { ai_suggestion: aiData },
+      { new: true }
+    );
+
+    if (!booking) {
+      return res.status(404).json({ message: "ไม่พบการจอง" });
+    }
+
+    res.status(200).json({
+      message: "อัปเดตข้อมูล AI สำเร็จ",
+      data: booking
+    });
+  } catch (error) {
+    console.error("updateAiSuggestion Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -431,3 +505,5 @@ exports.deleteBooking = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+

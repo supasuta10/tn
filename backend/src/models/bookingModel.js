@@ -112,7 +112,12 @@ const bookingSchema = new mongoose.Schema(
         },
         slip_image: { type: String } // หลักฐานการชำระเงิน
       }
-    ]
+    ],
+
+    ai_suggestion: {
+      type: mongoose.Schema.Types.Mixed, // Flexible field for JSON data from n8n
+      default: null
+    }
   },
   { timestamps: true }
 );

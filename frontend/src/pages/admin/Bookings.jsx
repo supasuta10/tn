@@ -3,6 +3,7 @@ import { Calendar, MapPin, Edit, Trash2, Search, CheckCircle, Clock, XCircle, X,
 import Swal from 'sweetalert2';
 import bookingService from './../../services/BookingService';
 import menuService from './../../services/MenuService';
+import BookingDetailsModal from '../../components/admin/BookingDetailsModal';
 import MapDisplay from './../../components/shared/MapDisplay';
 import { formatNumber, formatPriceWithCurrency } from '../../utils/priceUtils';
 
@@ -839,560 +840,210 @@ const Bookings = () => {
         )}
       </div>
 
-      {/* Booking Details Modal */}
-      {showModal && selectedBooking && (
-        <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex justify-between items-center">
-                <h3 className="text-xl font-semibold text-gray-800">รายละเอียดการจอง</h3>
-                <button
-                  onClick={closeModal}
-                  className="text-gray-500 hover:text-gray-700 text-2xl"
-                >
-                  &times;
-                </button>
-              </div>
-            </div>
+      {/* Shared Booking Details Modal */}
+      <BookingDetailsModal
+        isOpen={showModal}
+        onClose={closeModal}
+        booking={selectedBooking}
+      />
 
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                {/* Booking Information */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="text-lg font-semibold text-gray-700 mb-3">ข้อมูลการจอง</h4>
-                  <div className="space-y-2">
-                    <div className="flex">
-                      <span className="font-medium w-32 text-gray-600">รหัสการจอง:</span>
-                      <span className="text-gray-800">{selectedBooking.bookingCode || 'ไม่ระบุ'}</span>
-                    </div>
-                    <div className="flex">
-                      <span className="font-medium w-32 text-gray-600">วันที่จอง:</span>
-                      <span className="text-gray-800">
-                        {selectedBooking.booking_date ? new Date(selectedBooking.booking_date).toLocaleDateString() : 'ไม่ระบุ'}
-                      </span>
-                    </div>
-                    <div className="flex">
-                      <span className="font-medium w-32 text-gray-600">สถานะ:</span>
-                      <span className={`text-xs font-semibold rounded-full px-2 py-1 ${getStatusColor(selectedBooking.payment_status || 'pending-deposit')}`}>
-                        {selectedBooking.payment_status === 'pending-deposit' ? 'รอดำเนินการ' :
-                          selectedBooking.payment_status === 'deposit-paid' ? 'ยืนยันแล้ว' :
-                            selectedBooking.payment_status === 'full-payment' ? 'เสร็จสิ้น' :
-                              selectedBooking.payment_status === 'cancelled' ? 'ยกเลิก' : 'ไม่ทราบ'}
-                      </span>
-                    </div>
-                    <div className="flex">
-                      <span className="font-medium w-32 text-gray-600">ราคารวม:</span>
-                      <span className="text-gray-800 font-medium">{typeof selectedBooking.total_price === 'object' ? selectedBooking.total_price.$numberDecimal : selectedBooking.total_price} บาท</span>
-                    </div>
-                    <div className="flex">
-                      <span className="font-medium w-32 text-gray-600">เงินมัดจำ:</span>
-                      <span className="text-gray-800 font-medium">{typeof selectedBooking.deposit_required === 'object' ? selectedBooking.deposit_required.$numberDecimal : selectedBooking.deposit_required} บาท</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Customer Information */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="text-lg font-semibold text-gray-700 mb-3">ข้อมูลลูกค้า</h4>
-                  <div className="space-y-2">
-                    <div className="flex">
-                      <span className="font-medium w-32 text-gray-600">ชื่อ:</span>
-                      <span className="text-gray-800">{selectedBooking.customer?.name || 'ไม่ระบุ'}</span>
-                    </div>
-                    <div className="flex">
-                      <span className="font-medium w-32 text-gray-600">อีเมล:</span>
-                      <span className="text-gray-800">{selectedBooking.customer?.email || 'ไม่ระบุ'}</span>
-                    </div>
-                    <div className="flex">
-                      <span className="font-medium w-32 text-gray-600">เบอร์โทร:</span>
-                      <span className="text-gray-800">{selectedBooking.customer?.phone || 'ไม่ระบุ'}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                {/* Event Information */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="text-lg font-semibold text-gray-700 mb-3">ข้อมูลอีเว้นท์</h4>
-                  <div className="space-y-2">
-                    <div className="flex">
-                      <span className="font-medium w-32 text-gray-600">วันที่จัดงาน:</span>
-                      <span className="text-gray-800">
-                        {selectedBooking.event_datetime ? new Date(selectedBooking.event_datetime).toLocaleDateString() : 'ไม่ระบุ'}
-                      </span>
-                    </div>
-                    <div className="flex">
-                      <span className="font-medium w-32 text-gray-600">เวลาจัดงาน:</span>
-                      <span className="text-gray-800">
-                        {selectedBooking.event_datetime ? new Date(selectedBooking.event_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'ไม่ระบุ'}
-                      </span>
-                    </div>
-                    <div className="flex">
-                      <span className="font-medium w-32 text-gray-600">สถานที่:</span>
-                      <span className="text-gray-800">{selectedBooking.location?.address || 'ไม่ระบุ'}</span>
-                    </div>
-                    <div className="flex">
-                      <span className="font-medium w-32 text-gray-600">จำนวนโต๊ะ:</span>
-                      <span className="text-gray-800">{selectedBooking.table_count || 0} โต๊ะ</span>
-                    </div>
-                    <div className="flex">
-                      <span className="font-medium w-32 text-gray-600">คำขอพิเศษ:</span>
-                      <span className="text-gray-800">{selectedBooking.specialRequest || 'ไม่ระบุ'}</span>
-                    </div>
-                  </div>
-
-                  {/* Location Map */}
-                  {selectedBooking.location?.latitude && selectedBooking.location?.longitude && (
-                    <div className="mt-4">
-                      <h4 className="text-lg font-semibold text-gray-700 mb-3">แผนที่สถานที่จัดงาน</h4>
-                      <MapDisplay
-                        latitude={selectedBooking.location.latitude}
-                        longitude={selectedBooking.location.longitude}
-                        address={selectedBooking.location.address}
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* Package Information */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <div className="flex justify-between items-center mb-3">
-                    <h4 className="text-lg font-semibold text-gray-700">ข้อมูลแพ็กเกจ</h4>
-                    {canEditMenu(selectedBooking.payment_status) && (
-                      <button
-                        onClick={() => openEditMenuModal(selectedBooking)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-sm flex items-center"
-                      >
-                        <Edit className="w-4 h-4 mr-1" />
-                        แก้ไขเมนู
-                      </button>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex">
-                      <span className="font-medium w-32 text-gray-600">ชื่อแพ็กเกจ:</span>
-                      <span className="text-gray-800">{selectedBooking.package?.package_name || 'ไม่ระบุ'}</span>
-                    </div>
-                    <div className="flex">
-                      <span className="font-medium w-32 text-gray-600">ราคาต่อโต๊ะ:</span>
-                      <span className="text-gray-800">฿{typeof selectedBooking.package?.price_per_table === 'object' ? selectedBooking.package.price_per_table.$numberDecimal : selectedBooking.package?.price_per_table || 0}</span>
-                    </div>
-                    <div className="flex">
-                      <span className="font-medium w-32 text-gray-600">ชุดอาหาร:</span>
-                      <div className="text-gray-800 flex-1">
-                        {selectedBooking.menu_sets && selectedBooking.menu_sets.length > 0 ? (
-                          (() => {
-                            // Group menus by category for display
-                            const menusByCategory = {};
-                            const categoryNames = {
-                              'appetizer': 'ออเดิร์ฟ',
-                              'soup': 'ซุป',
-                              'maincourse': 'จานหลัก',
-                              'carb': 'ข้าว/เส้น',
-                              'curry': 'ต้ม/แกง',
-                              'dessert': 'ของหวาน',
-                              'special': 'เมนูพิเศษ'
-                            };
-                            const orderedCategories = ['appetizer', 'soup', 'maincourse', 'carb', 'curry', 'dessert', 'special'];
-
-                            selectedBooking.menu_sets.forEach(set => {
-                              const cat = set.category || 'other';
-                              if (!menusByCategory[cat]) menusByCategory[cat] = [];
-                              menusByCategory[cat].push(set);
-                            });
-
-                            return (
-                              <div className="space-y-2 mt-1">
-                                {orderedCategories.map(cat => {
-                                  if (!menusByCategory[cat]) return null;
-                                  return (
-                                    <div key={cat}>
-                                      <div className="text-xs font-semibold text-gray-500 mb-1">{categoryNames[cat] || cat}</div>
-                                      <ul className="list-disc pl-4 text-sm">
-                                        {menusByCategory[cat].map((menu, idx) => (
-                                          <li key={idx} className="text-gray-700">
-                                            {menu.menu_name} ({menu.quantity})
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  );
-                                })}
-                                {/* Handle 'other' category or unknown categories */}
-                                {Object.keys(menusByCategory).filter(c => !orderedCategories.includes(c)).map(cat => (
-                                  <div key={cat}>
-                                    <div className="text-xs font-semibold text-gray-500 mb-1">{cat}</div>
-                                    <ul className="list-disc pl-4 text-sm">
-                                      {menusByCategory[cat].map((menu, idx) => (
-                                        <li key={idx} className="text-gray-700">
-                                          {menu.menu_name} ({menu.quantity})
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                ))}
-                              </div>
-                            );
-                          })()
-                        ) : (
-                          'ไม่ระบุ'
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* AI Insights Section */}
-                  <div className="mt-4 bg-gradient-to-r from-purple-50 to-blue-50 p-3 rounded-lg border border-purple-200">
-                    <div className="flex items-center mb-2">
-                      <span className="text-lg mr-2">🤖</span>
-                      <h5 className="text-sm font-semibold text-purple-700">AI Insights</h5>
-                    </div>
-
-                    {/* Distance Calculation */}
-                    <div className="mb-3">
-                      <div className="flex items-center mb-1">
-                        <span className="text-sm mr-1">📍</span>
-                        <span className="text-xs font-medium text-gray-700">ระยะทางจากร้าน:</span>
-                      </div>
-                      {selectedBooking.location?.latitude && selectedBooking.location?.longitude ? (
-                        <div className="bg-white p-2 rounded border border-purple-100">
-                          {(() => {
-                            const originLat = 13.8250280;
-                            const originLng = 100.0274870;
-                            const destLat = selectedBooking.location.latitude;
-                            const destLng = selectedBooking.location.longitude;
-                            const R = 6371;
-                            const dLat = (destLat - originLat) * Math.PI / 180;
-                            const dLon = (destLng - originLng) * Math.PI / 180;
-                            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                              Math.cos(originLat * Math.PI / 180) * Math.cos(destLat * Math.PI / 180) *
-                              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-                            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                            const distance = R * c;
-                            return (
-                              <div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs text-gray-600">ระยะทาง:</span>
-                                  <span className="text-lg font-bold text-purple-600">{distance.toFixed(2)} กม.</span>
-                                </div>
-                                <div className="mt-1 text-xs text-gray-500">
-                                  <div>📌 ร้าน → จุดหมาย</div>
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      ) : (
-                        <div className="bg-white p-2 rounded border border-gray-200 text-gray-500 text-xs">
-                          ไม่มีข้อมูลพิกัด
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Ingredients Estimation */}
-                    <div>
-                      <div className="flex items-center mb-1">
-                        <span className="text-sm mr-1">🥬</span>
-                        <span className="text-xs font-medium text-gray-700">วัตถุดิบที่ต้องใช้:</span>
-                      </div>
-                      <div className="bg-white p-2 rounded border border-purple-100">
-                        {selectedBooking.table_count ? (
-                          <div>
-                            <div className="text-xs text-gray-500 mb-1">
-                              สำหรับ {selectedBooking.table_count} โต๊ะ (~{selectedBooking.table_count * 10} ท่าน)
-                            </div>
-                            <div className="grid grid-cols-2 gap-1 text-xs">
-                              <div>• ข้าวสวย: {selectedBooking.table_count * 2} กก.</div>
-                              <div>• เนื้อหมู: {selectedBooking.table_count * 1.5} กก.</div>
-                              <div>• ไก่: {selectedBooking.table_count * 2} กก.</div>
-                              <div>• กุ้ง: {selectedBooking.table_count * 1} กก.</div>
-                              <div>• ปลา: {selectedBooking.table_count * 1.5} กก.</div>
-                              <div>• ผักรวม: {selectedBooking.table_count * 3} กก.</div>
-                            </div>
-                            <div className="mt-1 text-xs text-purple-600">💡 ประมาณการเบื้องต้น</div>
-                          </div>
-                        ) : (
-                          <div className="text-gray-500 text-xs">ไม่มีข้อมูลจำนวนโต๊ะ</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Payment Information */}
-              <div className="bg-gray-50 p-4 rounded-lg mb-6">
-                <h4 className="text-lg font-semibold text-gray-700 mb-3">ข้อมูลการชำระเงิน</h4>
-                <div className="space-y-2">
-                  <div className="flex">
-                    <span className="font-medium w-32 text-gray-600">สถานะการชำระเงิน:</span>
-                    <span className={`text-xs font-semibold rounded-full px-2 py-1 ${getStatusColor(selectedBooking.payment_status || 'pending-deposit')}`}>
-                      {selectedBooking.payment_status === 'pending-deposit' ? 'รอดำเนินการ' :
-                        selectedBooking.payment_status === 'deposit-paid' ? 'จ่ายมัดจำแล้ว' :
-                          selectedBooking.payment_status === 'full-payment' ? 'ชำระเต็มจำนวน' :
-                            selectedBooking.payment_status === 'cancelled' ? 'ยกเลิก' : 'ไม่ทราบ'}
-                    </span>
-                  </div>
-                  {selectedBooking.payments && selectedBooking.payments.length > 0 && (
-                    <div>
-                      <span className="font-medium text-gray-600 block mb-2">ประวัติการชำระเงิน:</span>
-                      <div className="space-y-2">
-                        {selectedBooking.payments.map((payment, index) => {
-                          // Check if payment amount matches required deposit
-                          const requiredAmount = typeof selectedBooking.deposit_required === 'object'
-                            ? parseFloat(selectedBooking.deposit_required.$numberDecimal)
-                            : parseFloat(selectedBooking.deposit_required || 0);
-                          const paymentAmount = typeof payment.amount === 'object'
-                            ? parseFloat(payment.amount.$numberDecimal)
-                            : parseFloat(payment.amount || 0);
-                          const isAmountCorrect = payment.payment_type === 'deposit'
-                            ? paymentAmount >= requiredAmount
-                            : true; // For non-deposit payments, we don't verify amount
-
-                          return (
-                            <div key={index} className="flex text-sm">
-                              <div className="w-32 text-gray-600">
-                                {new Date(payment.payment_date).toLocaleDateString()}:
-                              </div>
-                              <div className={`${!isAmountCorrect ? 'text-red-600' : 'text-gray-800'} ${payment.payment_type === 'deposit' && !isAmountCorrect ? 'bg-red-50 p-1 rounded' : ''}`}>
-                                ฿{typeof payment.amount === 'object' ? payment.amount.$numberDecimal : payment.amount || 0} ({payment.payment_type})
-                                {payment.payment_type === 'deposit' && !isAmountCorrect && (
-                                  <div className="text-xs text-red-600 mt-1">
-                                    * แจ้งเตือน: ชำระ ฿{paymentAmount} แต่ต้องชำระ ฿{requiredAmount}
-                                  </div>
-                                )}
-                                {payment.slip_image && (
-                                  <div className="mt-1">
-                                    <a href={payment.slip_image} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs">
-                                      ดูหลักฐานการชำระเงิน
-                                    </a>
-
-                                    <img
-                                      src={`http://localhost:8080${payment.slip_image}`}
-                                      alt={payment.name}
-                                      className="rounded-md object-cover w-3xl"
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 border-t border-gray-200 flex justify-end">
-              <button
-                onClick={closeModal}
-                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-              >
-                ปิด
-              </button>
-            </div>
+{/* Edit Menu Modal */ }
+{
+  showEditMenuModal && (
+    <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-semibold text-gray-800">แก้ไขเมนูในแพ็กเกจ</h3>
+            <button
+              onClick={closeEditMenuModal}
+              className="text-gray-500 hover:text-gray-700 text-2xl"
+            >
+              &times;
+            </button>
           </div>
         </div>
-      )}
 
-      {/* Edit Menu Modal */}
-      {showEditMenuModal && (
-        <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex justify-between items-center">
-                <h3 className="text-xl font-semibold text-gray-800">แก้ไขเมนูในแพ็กเกจ</h3>
-                <button
-                  onClick={closeEditMenuModal}
-                  className="text-gray-500 hover:text-gray-700 text-2xl"
-                >
-                  &times;
-                </button>
-              </div>
+        <div className="p-6">
+          {loadingMenus ? (
+            <div className="flex justify-center items-center h-32">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
             </div>
-
-            <div className="p-6">
-              {loadingMenus ? (
-                <div className="flex justify-center items-center h-32">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Available Menus */}
-                  <div>
-                    <h4 className="text-lg font-semibold text-gray-700 mb-3">เมนูที่มีอยู่</h4>
-                    <div className="border border-gray-300 rounded-lg max-h-96 overflow-y-auto">
-                      {availableMenus.length === 0 ? (
-                        <div className="p-4 text-center text-gray-500">
-                          ไม่มีเมนูที่สามารถเลือกได้
-                        </div>
-                      ) : (
-                        <div className="p-2">
-                          {/* Group menus by category */}
-                          {groupMenusByCategory(availableMenus).map(([category, menus]) => (
-                            <div key={category} className="mb-4">
-                              <h5 className="font-semibold text-gray-800 mb-2 capitalize">{category}</h5>
-                              <div className="space-y-2">
-                                {menus.map(menu => {
-                                  const isSelected = selectedMenus.some(selected => selected._id === menu._id);
-                                  return (
-                                    <div
-                                      key={menu._id}
-                                      className={`flex items-center p-3 rounded-lg cursor-pointer ${isSelected
-                                        ? 'bg-blue-100 border border-blue-300'
-                                        : 'bg-gray-50 hover:bg-gray-100 border border-gray-200'
-                                        }`}
-                                      onClick={() => handleMenuSelection(menu)}
-                                    >
-                                      <div className="flex-1">
-                                        <div className="font-medium">{menu.name}</div>
-                                        <div className="text-sm text-gray-600">{menu.code} - ฿{typeof menu.price === 'object' ? menu.price.$numberDecimal : menu.price}</div>
-                                      </div>
-                                      {isSelected && (
-                                        <div className="flex items-center">
-                                          <button
-                                            className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-300"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              updateMenuQuantity(menu._id, selectedMenus.find(m => m._id === menu._id).quantity - 1);
-                                            }}
-                                          >
-                                            -
-                                          </button>
-                                          <span className="mx-2">
-                                            {selectedMenus.find(m => m._id === menu._id)?.quantity || 1}
-                                          </span>
-                                          <button
-                                            className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-300"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              updateMenuQuantity(menu._id, selectedMenus.find(m => m._id === menu._id).quantity + 1);
-                                            }}
-                                          >
-                                            +
-                                          </button>
-                                        </div>
-                                      )}
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Available Menus */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-700 mb-3">เมนูที่มีอยู่</h4>
+                <div className="border border-gray-300 rounded-lg max-h-96 overflow-y-auto">
+                  {availableMenus.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500">
+                      ไม่มีเมนูที่สามารถเลือกได้
+                    </div>
+                  ) : (
+                    <div className="p-2">
+                      {/* Group menus by category */}
+                      {groupMenusByCategory(availableMenus).map(([category, menus]) => (
+                        <div key={category} className="mb-4">
+                          <h5 className="font-semibold text-gray-800 mb-2 capitalize">{category}</h5>
+                          <div className="space-y-2">
+                            {menus.map(menu => {
+                              const isSelected = selectedMenus.some(selected => selected._id === menu._id);
+                              return (
+                                <div
+                                  key={menu._id}
+                                  className={`flex items-center p-3 rounded-lg cursor-pointer ${isSelected
+                                    ? 'bg-blue-100 border border-blue-300'
+                                    : 'bg-gray-50 hover:bg-gray-100 border border-gray-200'
+                                    }`}
+                                  onClick={() => handleMenuSelection(menu)}
+                                >
+                                  <div className="flex-1">
+                                    <div className="font-medium">{menu.name}</div>
+                                    <div className="text-sm text-gray-600">{menu.code} - ฿{typeof menu.price === 'object' ? menu.price.$numberDecimal : menu.price}</div>
+                                  </div>
+                                  {isSelected && (
+                                    <div className="flex items-center">
+                                      <button
+                                        className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-300"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          updateMenuQuantity(menu._id, selectedMenus.find(m => m._id === menu._id).quantity - 1);
+                                        }}
+                                      >
+                                        -
+                                      </button>
+                                      <span className="mx-2">
+                                        {selectedMenus.find(m => m._id === menu._id)?.quantity || 1}
+                                      </span>
+                                      <button
+                                        className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-700 hover:bg-gray-300"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          updateMenuQuantity(menu._id, selectedMenus.find(m => m._id === menu._id).quantity + 1);
+                                        }}
+                                      >
+                                        +
+                                      </button>
                                     </div>
-                                  );
-                                })}
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Selected Menus */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-700 mb-3">เมนูที่เลือก</h4>
+                <div className="border border-gray-300 rounded-lg max-h-96 overflow-y-auto p-2">
+                  {selectedMenus.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500">
+                      ยังไม่มีเมนูที่เลือก
+                    </div>
+                  ) : (
+                    (() => {
+                      const grouped = {};
+                      selectedMenus.forEach(m => {
+                        const cat = m.category || 'other';
+                        if (!grouped[cat]) grouped[cat] = [];
+                        grouped[cat].push(m);
+                      });
+
+                      const categoryNames = {
+                        'appetizer': 'ออเดิร์ฟ',
+                        'soup': 'ซุป',
+                        'maincourse': 'จานหลัก',
+                        'carb': 'ข้าว/เส้น',
+                        'curry': 'ต้ม/แกง',
+                        'dessert': 'ของหวาน',
+                        'special': 'เมนูพิเศษ'
+                      };
+                      const orderedCategories = ['appetizer', 'soup', 'maincourse', 'carb', 'curry', 'dessert', 'special'];
+
+                      return (
+                        <div className="space-y-4">
+                          {orderedCategories.map(cat => {
+                            if (!grouped[cat]) return null;
+                            return (
+                              <div key={cat}>
+                                <h5 className="font-semibold text-gray-800 mb-2 border-b pb-1 text-sm">{categoryNames[cat] || cat}</h5>
+                                <div className="space-y-2">
+                                  {grouped[cat].map((menu) => (
+                                    <div key={menu._id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                      <div className="flex-1">
+                                        <div className="font-medium">{menu.menu_name}</div>
+                                        <div className="text-sm text-gray-600">จำนวน: {menu.quantity}</div>
+                                      </div>
+                                      <button
+                                        onClick={() => handleMenuSelection(menu)}
+                                        className="text-red-600 hover:text-red-800"
+                                      >
+                                        <X className="w-5 h-5" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {Object.keys(grouped).filter(c => !orderedCategories.includes(c)).map(cat => (
+                            <div key={cat}>
+                              <h5 className="font-semibold text-gray-800 mb-2 border-b pb-1 text-sm">{cat}</h5>
+                              <div className="space-y-2">
+                                {grouped[cat].map((menu) => (
+                                  <div key={menu._id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                    <div className="flex-1">
+                                      <div className="font-medium">{menu.menu_name}</div>
+                                      <div className="text-sm text-gray-600">จำนวน: {menu.quantity}</div>
+                                    </div>
+                                    <button
+                                      onClick={() => handleMenuSelection(menu)}
+                                      className="text-red-600 hover:text-red-800"
+                                    >
+                                      <X className="w-5 h-5" />
+                                    </button>
+                                  </div>
+                                ))}
                               </div>
                             </div>
                           ))}
                         </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Selected Menus */}
-                  <div>
-                    <h4 className="text-lg font-semibold text-gray-700 mb-3">เมนูที่เลือก</h4>
-                    <div className="border border-gray-300 rounded-lg max-h-96 overflow-y-auto p-2">
-                      {selectedMenus.length === 0 ? (
-                        <div className="p-4 text-center text-gray-500">
-                          ยังไม่มีเมนูที่เลือก
-                        </div>
-                      ) : (
-                        (() => {
-                          const grouped = {};
-                          selectedMenus.forEach(m => {
-                            const cat = m.category || 'other';
-                            if (!grouped[cat]) grouped[cat] = [];
-                            grouped[cat].push(m);
-                          });
-
-                          const categoryNames = {
-                            'appetizer': 'ออเดิร์ฟ',
-                            'soup': 'ซุป',
-                            'maincourse': 'จานหลัก',
-                            'carb': 'ข้าว/เส้น',
-                            'curry': 'ต้ม/แกง',
-                            'dessert': 'ของหวาน',
-                            'special': 'เมนูพิเศษ'
-                          };
-                          const orderedCategories = ['appetizer', 'soup', 'maincourse', 'carb', 'curry', 'dessert', 'special'];
-
-                          return (
-                            <div className="space-y-4">
-                              {orderedCategories.map(cat => {
-                                if (!grouped[cat]) return null;
-                                return (
-                                  <div key={cat}>
-                                    <h5 className="font-semibold text-gray-800 mb-2 border-b pb-1 text-sm">{categoryNames[cat] || cat}</h5>
-                                    <div className="space-y-2">
-                                      {grouped[cat].map((menu) => (
-                                        <div key={menu._id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
-                                          <div className="flex-1">
-                                            <div className="font-medium">{menu.menu_name}</div>
-                                            <div className="text-sm text-gray-600">จำนวน: {menu.quantity}</div>
-                                          </div>
-                                          <button
-                                            onClick={() => handleMenuSelection(menu)}
-                                            className="text-red-600 hover:text-red-800"
-                                          >
-                                            <X className="w-5 h-5" />
-                                          </button>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                              {Object.keys(grouped).filter(c => !orderedCategories.includes(c)).map(cat => (
-                                <div key={cat}>
-                                  <h5 className="font-semibold text-gray-800 mb-2 border-b pb-1 text-sm">{cat}</h5>
-                                  <div className="space-y-2">
-                                    {grouped[cat].map((menu) => (
-                                      <div key={menu._id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
-                                        <div className="flex-1">
-                                          <div className="font-medium">{menu.menu_name}</div>
-                                          <div className="text-sm text-gray-600">จำนวน: {menu.quantity}</div>
-                                        </div>
-                                        <button
-                                          onClick={() => handleMenuSelection(menu)}
-                                          className="text-red-600 hover:text-red-800"
-                                        >
-                                          <X className="w-5 h-5" />
-                                        </button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        })()
-                      )}
-                    </div>
-                  </div>
+                      );
+                    })()
+                  )}
                 </div>
-              )}
+              </div>
             </div>
-
-            <div className="p-4 border-t border-gray-200 flex justify-end space-x-3">
-              <button
-                onClick={closeEditMenuModal}
-                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={updateBookingMenuSets}
-                disabled={loadingMenus}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center"
-              >
-                <Save className="w-4 h-4 mr-2" />
-                บันทึก
-              </button>
-            </div>
-          </div>
+          )}
         </div>
-      )}
+
+        <div className="p-4 border-t border-gray-200 flex justify-end space-x-3">
+          <button
+            onClick={closeEditMenuModal}
+            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+          >
+            ยกเลิก
+          </button>
+          <button
+            onClick={updateBookingMenuSets}
+            disabled={loadingMenus}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center"
+          >
+            <Save className="w-4 h-4 mr-2" />
+            บันทึก
+          </button>
+        </div>
+      </div>
     </div>
-  );
+  )
+}
+          </div >
+          );
 };
 
 export default Bookings;

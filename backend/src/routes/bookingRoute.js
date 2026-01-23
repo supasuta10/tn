@@ -29,4 +29,10 @@ router.put("/:id/menu-sets", authenticateToken, adminAuth, asyncHandler(bookingC
 // DELETE: delete booking (admin only)
 router.delete("/:id", authenticateToken, adminAuth, asyncHandler(bookingController.deleteBooking));
 
+// PUT: Update AI Suggestion (Callback from n8n) - No auth required or use API key in future
+router.put("/:id/ai-suggestion", asyncHandler(bookingController.updateAiSuggestion));
+
+// POST: Trigger AI Calculation Manually
+router.post("/:id/trigger-ai", authenticateToken, adminAuth, asyncHandler(bookingController.triggerAiCalculation));
+
 module.exports = router;

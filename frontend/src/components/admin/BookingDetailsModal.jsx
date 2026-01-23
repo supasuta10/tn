@@ -203,10 +203,31 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
           </div>
 
           {/* AI Insights Section */}
+          <div className="flex justify-between items-center mb-2">
+            <h4 className="text-lg font-semibold text-gray-700">AI Analysis</h4>
+            <button
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem('token');
+                  await axios.post(`http://localhost:8080/api/bookings/${booking._id}/trigger-ai`, {}, {
+                    headers: { Authorization: `Bearer ${token}` }
+                  });
+                  alert('ส่งคำขอคำนวณไปยัง AI แล้ว! กรุณารอสักครู่และรีเฟรชหน้าจอ');
+                } catch (err) {
+                  console.error('Failed to trigger AI:', err);
+                  alert('เกิดข้อผิดพลาดในการเรียกใช้ AI');
+                }
+              }}
+              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition flex items-center shadow-sm"
+            >
+              <span className="mr-2">⚡️</span> คำนวณ AI
+            </button>
+          </div>
+
           <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg border border-purple-200 mb-6">
             <div className="flex items-center mb-3">
               <span className="text-2xl mr-2">🤖</span>
-              <h4 className="text-lg font-semibold text-purple-700">AI Insights</h4>
+              <h4 className="text-lg font-semibold text-purple-700">ผลการวิเคราะห์ (AI Insights)</h4>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -218,39 +239,55 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                 </div>
                 {booking.location?.latitude && booking.location?.longitude ? (
                   <div className="bg-white p-3 rounded-lg border border-purple-100">
-                    {(() => {
-                      const originLat = 13.8250280;
-                      const originLng = 100.0274870;
-                      const destLat = booking.location.latitude;
-                      const destLng = booking.location.longitude;
-
-                      const R = 6371;
-                      const dLat = (destLat - originLat) * Math.PI / 180;
-                      const dLon = (destLng - originLng) * Math.PI / 180;
-                      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                        Math.cos(originLat * Math.PI / 180) * Math.cos(destLat * Math.PI / 180) *
-                        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-                      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                      const distance = R * c;
-
-                      return (
-                        <div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-gray-600">ระยะทาง:</span>
-                            <span className="text-xl font-bold text-purple-600">{distance.toFixed(2)} กม.</span>
-                          </div>
-                          <div className="mt-2 text-xs text-gray-500">
-                            <div>📌 ร้าน: (13.8250, 100.0275)</div>
-                            <div>📌 จุดหมาย: ({destLat.toFixed(4)}, {destLng.toFixed(4)})</div>
-                          </div>
-                          {distance > 30 && (
-                            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700">
-                              ⚠️ ระยะทาง {'>'} 30 กม. อาจมีค่าขนส่งเพิ่ม
-                            </div>
-                          )}
+                    {booking.ai_suggestion && booking.ai_suggestion.distance_km ? (
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-600">ระยะทาง (AI):</span>
+                          <span className="text-xl font-bold text-green-600">{booking.ai_suggestion.distance_km} กม.</span>
                         </div>
-                      );
-                    })()}
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-gray-600 text-xs">เวลาเดินทาง:</span>
+                          <span className="text-sm font-medium text-gray-800">{booking.ai_suggestion.estimated_travel_time_mins || '-'} นาที</span>
+                        </div>
+                        <div className="mt-2 text-xs text-gray-500">
+                          <div>📌 คำนวณจากเส้นทางจริง</div>
+                        </div>
+                      </div>
+                    ) : (
+                      (() => {
+                        const originLat = 13.8250280;
+                        const originLng = 100.0274870;
+                        const destLat = booking.location.latitude;
+                        const destLng = booking.location.longitude;
+
+                        const R = 6371;
+                        const dLat = (destLat - originLat) * Math.PI / 180;
+                        const dLon = (destLng - originLng) * Math.PI / 180;
+                        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                          Math.cos(originLat * Math.PI / 180) * Math.cos(destLat * Math.PI / 180) *
+                          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                        const distance = R * c;
+
+                        return (
+                          <div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-600">ระยะทาง (Line):</span>
+                              <span className="text-xl font-bold text-gray-400">{distance.toFixed(2)} กม.</span>
+                            </div>
+                            <div className="mt-2 text-xs text-gray-500">
+                              <div>📌 ร้าน: (13.8250, 100.0275)</div>
+                              <div>📌 จุดหมาย: ({destLat.toFixed(4)}, {destLng.toFixed(4)})</div>
+                            </div>
+                            {distance > 30 && (
+                              <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700">
+                                ⚠️ ระยะทาง {'>'} 30 กม. อาจมีค่าขนส่งเพิ่ม
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()
+                    )}
                   </div>
                 ) : (
                   <div className="bg-white p-3 rounded-lg border border-gray-200 text-gray-500 text-sm">
@@ -266,39 +303,45 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                   <span className="font-medium text-gray-700">วัตถุดิบที่ต้องใช้:</span>
                 </div>
                 <div className="bg-white p-3 rounded-lg border border-purple-100">
-                  {booking.table_count ? (
+                  {booking.ai_suggestion && booking.ai_suggestion.ingredients ? (
                     <div>
                       <div className="text-xs text-gray-500 mb-2">
-                        สำหรับ {booking.table_count} โต๊ะ (~{booking.table_count * 10} ท่าน)
+                        จาก AI Response (ประมาณการสำหรับ {booking.table_count} โต๊ะ)
                       </div>
                       <div className="grid grid-cols-2 gap-1 text-xs">
+                        {booking.ai_suggestion.ingredients.map((ing, idx) => (
+                          <div key={idx} className="flex items-center">
+                            <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                            {ing.item}: {ing.quantity} {ing.unit}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-2 p-1 bg-purple-50 rounded text-xs text-purple-600">
+                        💡 ข้อมูลจาก AI
+                      </div>
+                    </div>
+                  ) : booking.table_count ? (
+                    <div>
+                      <div className="text-xs text-gray-500 mb-2">
+                        ระบบคำนวณเบื้องต้น (รอ AI...)
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 text-xs">
+                        {/* Fallback logic (keep existing or simplified) */}
                         <div className="flex items-center">
-                          <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                          <span className="w-2 h-2 bg-gray-400 rounded-full mr-1"></span>
                           ข้าวสวย: {booking.table_count * 2} กก.
                         </div>
                         <div className="flex items-center">
-                          <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
-                          เนื้อหมู: {booking.table_count * 1.5} กก.
+                          <span className="w-2 h-2 bg-gray-400 rounded-full mr-1"></span>
+                          เนื้อสัตว์รวม: {booking.table_count * 5} กก.
                         </div>
                         <div className="flex items-center">
-                          <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
-                          ไก่: {booking.table_count * 2} กก.
-                        </div>
-                        <div className="flex items-center">
-                          <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
-                          กุ้ง: {booking.table_count * 1} กก.
-                        </div>
-                        <div className="flex items-center">
-                          <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
-                          ปลา: {booking.table_count * 1.5} กก.
-                        </div>
-                        <div className="flex items-center">
-                          <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                          <span className="w-2 h-2 bg-gray-400 rounded-full mr-1"></span>
                           ผักรวม: {booking.table_count * 3} กก.
                         </div>
                       </div>
-                      <div className="mt-2 p-1 bg-purple-50 rounded text-xs text-purple-600">
-                        💡 ประมาณการเบื้องต้น
+                      <div className="mt-2 p-1 bg-gray-100 rounded text-xs text-gray-500">
+                        ⏳ รอการชำระเงินเพื่อคำนวณแม่นยำ
                       </div>
                     </div>
                   ) : (
