@@ -280,6 +280,7 @@ exports.triggerAiCalculation = async (req, res) => {
 
     // Prepare payload for n8n AI
     const payload = {
+      _id: booking._id,
       bookingCode: booking.bookingCode,
       customer: booking.customer,
       event_datetime: booking.event_datetime,
@@ -313,8 +314,16 @@ exports.updateAiSuggestion = async (req, res) => {
 
     console.log("Received AI Suggestion for Booking:", id);
 
-    const booking = await BookingModel.findByIdAndUpdate(
-      id,
+    // Check if id is a valid ObjectId, otherwise treat as bookingCode
+    let query;
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      query = { _id: id };
+    } else {
+      query = { bookingCode: id };
+    }
+
+    const booking = await BookingModel.findOneAndUpdate(
+      query,
       { ai_suggestion: aiData },
       { new: true }
     );
