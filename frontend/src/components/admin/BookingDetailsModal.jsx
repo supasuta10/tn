@@ -1,7 +1,10 @@
 import React from 'react';
 import axios from 'axios';
+import Swal from 'sweetalert2';
 import { X, Calendar, User, MapPin, Phone, Mail, CheckCircle, Clock, XCircle } from 'lucide-react';
 import MapDisplay from './../../components/shared/MapDisplay';
+
+
 
 const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
   if (!isOpen || !booking) return null;
@@ -213,10 +216,20 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                   await axios.post(`http://localhost:8080/api/bookings/${booking._id}/trigger-ai`, {}, {
                     headers: { Authorization: `Bearer ${token}` }
                   });
-                  alert('ส่งคำขอคำนวณไปยัง AI แล้ว! กรุณารอสักครู่และรีเฟรชหน้าจอ');
+                  Swal.fire({
+                    icon: 'success',
+                    title: 'ส่งคำขอแล้ว',
+                    text: 'ส่งคำขอคำนวณไปยัง AI แล้ว! กรุณารอสักครู่และรีเฟรชหน้าจอ',
+                    confirmButtonColor: '#22c55e'
+                  });
                 } catch (err) {
                   console.error('Failed to trigger AI:', err);
-                  alert('เกิดข้อผิดพลาดในการเรียกใช้ AI');
+                  Swal.fire({
+                    icon: 'error',
+                    title: 'เกิดข้อผิดพลาด',
+                    text: 'เกิดข้อผิดพลาดในการเรียกใช้ AI',
+                    confirmButtonColor: '#dc2626'
+                  });
                 }
               }}
               className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition flex items-center shadow-sm"
