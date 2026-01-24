@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const defaultOptions = {
-    baseURL: "http://localhost:8080/api",  // Updated to match backend server port
+    baseURL: "https://tn-8zig.onrender.com/api",  // Updated to match backend server port
     headers: {
         "Content-Type": "application/json",
     },
