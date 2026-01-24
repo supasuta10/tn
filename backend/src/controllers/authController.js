@@ -101,6 +101,9 @@ const login = async (req, res) => {
             message: "เข้าสู่ระบบสำเร็จ",
             data: {
                 full_name: `${user.title || ""} ${user.firstName} ${user.lastName}`.trim(),
+                firstName: user.firstName,
+                lastName: user.lastName,
+                title: user.title,
                 username: user.username,
                 email: user.email,
                 phone: user.phone,
@@ -125,7 +128,7 @@ const autoCreateAdmin = async () => {
                 title: "Mr.",
                 firstName: "System",
                 lastName: "Admin",
-                email:"admin@admin.com",
+                email: "admin@admin.com",
                 username: "admin",
                 password: hashedPassword,
                 phone: "0000000000",

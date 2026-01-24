@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import Swal from 'sweetalert2'
 import authService from '../../services/AuthService'
+import { useAuth } from '../../context/AuthContext'
 
 const Login = () => {
   const [loginData, setLoginData] = useState({
@@ -14,6 +15,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
+  const { login } = useAuth()
   const navigate = useNavigate()
 
   // Validate input fields
@@ -88,8 +90,11 @@ const Login = () => {
           sessionStorage.setItem('token', token)
         }
 
-        // Store user info
-        localStorage.setItem('token', token)
+        // Update AuthContext state
+        // We pass the whole user object (response.data.data) and token
+        login(response.data.data, token);
+
+        // Store user info (redundant but keeping for compatibility if other parts use it)
         localStorage.setItem('userRole', userRole)
         localStorage.setItem('username', response.data.data.username)
 
