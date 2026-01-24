@@ -213,7 +213,7 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
               onClick={async () => {
                 try {
                   const token = localStorage.getItem('token');
-                  await axios.post(`http://localhost:8080/api/bookings/${booking._id}/trigger-ai`, {}, {
+                  await axios.post(`https://tn-8zig.onrender.com/api/bookings/${booking._id}/trigger-ai`, {}, {
                     headers: { Authorization: `Bearer ${token}` }
                   });
                   Swal.fire({
