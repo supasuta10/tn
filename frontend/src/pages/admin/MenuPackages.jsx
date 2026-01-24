@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Search, Package, Utensils, X, Save, Minus, PlusCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Package, Utensils, X, Save, Minus, PlusCircle, Image as ImageIcon } from 'lucide-react';
 import menuPackageService from '../../services/MenuPackageService';
 import menuService from '../../services/MenuService';
 import Swal from 'sweetalert2';
@@ -13,6 +13,8 @@ const MenuPackages = () => {
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [currentPackage, setCurrentPackage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const BASE_URL = 'http://localhost:8080';
 
   // Form state for creating/editing
   const [formData, setFormData] = useState({
@@ -20,7 +22,8 @@ const MenuPackages = () => {
     price: '',
     conditions: [], // Array of { category, quota, extraPrice }
     menus: [],
-    description: ''
+    description: '',
+    imageFile: null
   });
 
   const CATEGORIES = ['appetizer', 'special', 'soup', 'maincourse', 'carb', 'curry', 'dessert'];
@@ -132,8 +135,10 @@ const MenuPackages = () => {
       name: '',
       price: '',
       categories: initialCategories,
-      description: ''
+      description: '',
+      imageFile: null
     });
+    setImagePreview(null);
     setFormErrors({});
     setShowModal(true);
   };
@@ -174,8 +179,10 @@ const MenuPackages = () => {
       name: pkg.name || '',
       price: convertDecimalValue(pkg.price) || '',
       categories: categories,
-      description: pkg.description || ''
+      description: pkg.description || '',
+      imageFile: null
     });
+    setImagePreview(null);
     setFormErrors({});
     setShowModal(true);
   };
@@ -226,6 +233,15 @@ const MenuPackages = () => {
   };
 
 
+
+  // Handle image selection
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setFormData(prev => ({ ...prev, imageFile: file }));
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
 
   // Handle setting default item
   const handleSetDefaultItem = (categoryIndex, menuId) => {
@@ -285,12 +301,15 @@ const MenuPackages = () => {
     }
 
     try {
-      const payload = {
-        name: formData.name,
-        price: formData.price,
-        description: formData.description,
-        categories: formData.categories
-      };
+      const payload = new FormData();
+      payload.append('name', formData.name);
+      payload.append('price', formData.price);
+      payload.append('description', formData.description);
+      payload.append('categories', JSON.stringify(formData.categories));
+
+      if (formData.imageFile) {
+        payload.append('image', formData.imageFile);
+      }
 
       if (currentPackage) {
         // Update existing package
@@ -322,8 +341,10 @@ const MenuPackages = () => {
         price: '',
         conditions: [],
         menus: [],
-        description: ''
+        description: '',
+        imageFile: null
       });
+      setImagePreview(null);
     } catch (err) {
       if (err.response?.data?.message) {
         setFormErrors({ general: err.response.data.message });
@@ -512,6 +533,7 @@ const MenuPackages = () => {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
+                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">รูปภาพ</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อชุด</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">ราคา</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">เลือกสูงสุด</th>
@@ -529,6 +551,19 @@ const MenuPackages = () => {
                 )
                 .map((pkg) => (
                   <tr key={pkg._id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {pkg.image ? (
+                        <img
+                          src={`${BASE_URL}${pkg.image}`}
+                          alt={pkg.name}
+                          className="h-10 w-10 rounded-full object-cover border border-gray-200"
+                        />
+                      ) : (
+                        <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+                          <ImageIcon className="w-5 h-5" />
+                        </div>
+                      )}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{pkg.name}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{formatPriceWithCurrency(pkg.price)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
@@ -632,6 +667,59 @@ const MenuPackages = () => {
                       {formErrors.price && (
                         <p className="mt-1 text-sm text-red-600">{formErrors.price}</p>
                       )}
+                    </div>
+                  </div>
+
+                  {/* Image Upload */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      รูปภาพแพ็กเกจ
+                    </label>
+                    <div className="flex items-center space-x-4 p-4 border border-dashed border-gray-300 rounded-lg bg-gray-50">
+                      {(imagePreview || (currentPackage && currentPackage.image)) ? (
+                        <div className="relative">
+                          <img
+                            src={imagePreview || `${BASE_URL}${currentPackage.image}`}
+                            alt="Preview"
+                            className="h-20 w-20 object-cover rounded-lg border border-gray-200"
+                          />
+                          {imagePreview && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setImagePreview(null);
+                                setFormData(prev => ({ ...prev, imageFile: null }));
+                              }}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 shadow-sm"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="h-20 w-20 rounded-lg bg-gray-200 flex items-center justify-center text-gray-400">
+                          <ImageIcon className="w-8 h-8" />
+                        </div>
+                      )}
+
+                      <div className="flex-1">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageChange}
+                          id="image-upload"
+                          className="hidden"
+                        />
+                        <label
+                          htmlFor="image-upload"
+                          className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          เลือกรูปภาพ
+                        </label>
+                        <p className="mt-2 text-xs text-gray-500">
+                          รองรับไฟล์ JPG, PNG (ขนาดไม่เกิน 5MB)
+                        </p>
+                      </div>
                     </div>
                   </div>
 

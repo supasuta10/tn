@@ -1,0 +1,209 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "sendTo": "ssptnoo2004@gmail.com",
+        "subject": "โต๊ะจีนชัยเจริญโภชนา",
+        "emailType": "text",
+        "message": "AI ได้ทำการประมวลผลวัตถุดิบที่ต้องใช้เรียบร้อยแล้ว โปรดรีเฟรชหน้าเว็บเพื่อดูข้อมูล",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        3440,
+        -160
+      ],
+      "id": "a8f9bc5f-b8ca-48c2-83f6-6e9b6a395143",
+      "name": "Send a message",
+      "webhookId": "3a3c7a1d-6887-4444-ad11-4e1b3ffb7e9a",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Bq4GlJqWF3zJq5jq",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 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"
+            },
+            {
+              "name": "HTTP-Referer",
+              "value": "https://your-site.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "openai/gpt-4o-mini"
+            },
+            {
+              "name": "messages",
+              "value": "={{ [{\"role\": \"user\", \"content\": $json.prompt}] }}"
+            },
+            {
+              "name": "response_format",
+              "value": "={{ {\"type\": \"json_object\"} }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5c42fcb4-88a1-447e-be1e-f7f31888217e",
+      "name": "OpenRouter AI1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        2672,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webhook",
+        "options": {}
+      },
+      "id": "0745369b-fb3b-43c6-883e-c4cdb7da4cf7",
+      "name": "Webhook1",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        2208,
+        -160
+      ],
+      "webhookId": "catering-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare the prompt for AI\nconst body = $input.all()[0].json.body;\n\nconst menuText = body.menu_sets.map(m => `- ${m.menu_name} (${m.quantity}): ${m.description || ''}`).join('\\n');\nconst location = typeof body.location === 'string' ? body.location : (body.location.address || 'Unknown');\nconst tables = body.table_count;\n\n// Coordinates provided by user\nconst shopAddress = \"13.8250280, 100.0274870\"; \n\n// Thai Prompt for Ingredient Calculation\nconst prompt = `\nคุณคือเชฟโต๊ะจีนมืออาชีพที่รับจัดเลี้ยงจริง\nเป้าหมายคือคำนวณวัตถุดิบเพื่อ \"นำไปซื้อของจริง\"\n\nข้อมูลพื้นฐาน:\n- จำนวนโต๊ะ: ${tables} โต๊ะ\n- 1 โต๊ะ = 10 คน\n- 1 เมนู = 1 จาน ต่อ 1 โต๊ะ\n\nกติกาการคำนวณ (สำคัญมาก):\n1. ต้องใช้ \"มาตรฐานการปรุงอาหารจริง\" ไม่เดา\n2. หน่วยที่ใช้:\n   - เนื้อสัตว์ใหญ่ (ปลา ไก่ เป็ด): ตัว + น้ำหนักเฉลี่ย (กิโลกรัม)\n   - เนื้อสัตว์ชิ้น (หมู กุ้ง ปลาหมึก): กิโลกรัม\n   - ผัก / สมุนไพร: กรัม หรือ กิโลกรัม\n   - เครื่องปรุง / น้ำซอส: กรัม หรือ มิลลิลิตร\n3. ห้ามใช้หน่วย \"ตัว\" กับผักหรือเครื่องปรุง\n4. ต้องรวมวัตถุดิบชื่อเดียวกันให้เหลือรายการเดียว\n5. ปริมาณต้องเพียงพอสำหรับ ${tables * 10} คน (ไม่ขาด ไม่เว่อร์)\n\nเมนูที่ต้องทำ:\n${menuText}\n\nผลลัพธ์:\n- คำนวณจาก \"ต่อ 1 จาน\" → คูณจำนวนโต๊ะ → รวมยอดทั้งหมด\n\nตอบกลับเป็น JSON เท่านั้น (ห้ามมีคำอธิบาย):\n{\n  \"ingredients\": [\n    {\n      \"item\": \"ชื่อวัตถุดิบ\",\n      \"quantity\": number,\n      \"unit\": \"กรัม|กิโลกรัม|มิลลิลิตร|ลิตร|ตัว\"\n    }\n  ]\n}\n\n`;\n\nreturn { prompt };"
+      },
+      "id": "f9b6fc65-da06-43bc-a7d3-62e9091a342b",
+      "name": "Prepare Prompt1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2432,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the JSON result from OpenRouter (Standard OpenAI format)\nconst content = $input.all()[0].json.choices[0].message.content;\nreturn JSON.parse(content);"
+      },
+      "id": "5dd967f8-8de3-4f02-855d-ce381768dc63",
+      "name": "Parse AI Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2944,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://tn-nd8u.onrender.com/api/bookings/{{ $('Webhook1').item.json.body.bookingCode }}/ai-suggestion",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "ingredients",
+              "value": "={{ $json.ingredients }}"
+            },
+            {
+              "name": "distance_km",
+              "value": "={{ $json.distance_km }}"
+            },
+            {
+              "name": "estimated_travel_time_mins",
+              "value": "={{ $json.estimated_travel_time_mins }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "06c75729-44a5-4c22-81fd-61a938eea12b",
+      "name": "Update Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        3168,
+        -160
+      ]
+    }
+  ],
+  "connections": {
+    "OpenRouter AI1": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Prepare Prompt1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Prompt1": {
+      "main": [
+        [
+          {
+            "node": "OpenRouter AI1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Output": {
+      "main": [
+        [
+          {
+            "node": "Update Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Backend": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "800b0be406c38ec10f0b45532a7057e2f5846745fa49c83d6d8e70f0bd0f23f4"
+  }
+}

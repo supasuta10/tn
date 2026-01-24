@@ -16,6 +16,11 @@ const menuPackageSchema = new mongoose.Schema(
       unique: true, // ราคาต่อโต๊ะ (เช่น 1800.00)
     },
 
+    image: {
+      type: String,
+      default: ""
+    },
+
     // Categories configuration
     categories: [
       {

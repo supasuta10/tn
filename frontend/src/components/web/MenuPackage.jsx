@@ -50,63 +50,78 @@ const MenuPackage = () => {
         {menuPackages.length > 0 ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-            {menuPackages.map((pkg) => (
-              <div key={pkg._id} className="bg-white p-6 rounded-xl shadow-md border border-green-100">
+            {menuPackages.map((pkg) => {
+              // Calculate total selectable items from categories
+              const maxSelect = pkg.categories ? pkg.categories.reduce((sum, c) => sum + (c.quota || 0), 0) : 0;
+              // Collect all menu items for display
+              const allMenuItems = pkg.categories ? pkg.categories.flatMap(c => c.items || []) : [];
+              // Default extra price
+              const extraMenuPrice = pkg.categories && pkg.categories.length > 0 ? (pkg.categories[0].extraPrice || 200) : 200;
 
-                <div className="bg-gray-200 border-2 border-dashed rounded-xl w-full h-40 mb-4 flex items-center justify-center">
-                  <span className="text-gray-500">Package Image</span>
-                </div>
+              return (
+                <div key={pkg._id} className="bg-white p-6 rounded-xl shadow-md border border-green-100">
+                  {pkg.image ? (
+                    <img
+                      src={`http://localhost:8080${pkg.image}`}
+                      alt={pkg.name}
+                      className="w-full h-40 object-cover rounded-xl mb-4"
+                    />
+                  ) : (
+                    <div className="bg-gray-200 border-2 border-dashed rounded-xl w-full h-40 mb-4 flex items-center justify-center">
+                      <span className="text-gray-500">Package Image</span>
+                    </div>
+                  )}
 
-                <h3 className="font-bold text-green-800 text-xl mb-2">{pkg.name}</h3>
-                <div className="text-lg font-bold text-green-600 mb-2">
-                  {formatPriceWithCurrency(pkg.price)}
-                </div>
+                  <h3 className="font-bold text-green-800 text-xl mb-2">{pkg.name}</h3>
+                  <div className="text-lg font-bold text-green-600 mb-2">
+                    {formatPriceWithCurrency(pkg.price)}
+                  </div>
 
-                <div className="mb-3">
-                  <p className="text-gray-600 text-sm">
-                    <span className="font-medium">เลือกได้:</span> {pkg.maxSelect} อย่าง
-                  </p>
-                  <p className="text-gray-600 text-sm">
-                    <span className="font-medium">ราคาเพิ่มเติม:</span> ฿{convertDecimalValue(pkg.extraMenuPrice)}/อย่าง
-                  </p>
-                </div>
+                  <div className="mb-3">
+                    <p className="text-gray-600 text-sm">
+                      <span className="font-medium">เลือกได้:</span> {maxSelect} อย่าง
+                    </p>
+                    <p className="text-gray-600 text-sm">
+                      <span className="font-medium">ราคาเพิ่มเติม:</span> ฿{extraMenuPrice}/อย่าง
+                    </p>
+                  </div>
 
-                <div className="mb-4">
-                  <p className="text-gray-600 text-sm mb-2">
-                    <span className="font-medium">เมนูในชุด:</span>
-                  </p>
-                  <div className="max-h-24 overflow-y-auto">
-                    {pkg.menus && pkg.menus.length > 0 ? (
-                      <ul className="text-sm text-gray-600">
-                        {(pkg.menus || []).slice(0, 3).map((menu, idx) => (
-                          <li key={idx} className="truncate">• {typeof menu === 'object' ? menu.name : menu}</li>
-                        ))}
-                        {pkg.menus.length > 3 && (
-                          <li>... และอีก {pkg.menus.length - 3} เมนู</li>
-                        )}
-                      </ul>
-                    ) : (
-                      <p className="text-sm text-gray-500">ไม่มีเมนูในชุด</p>
-                    )}
+                  <div className="mb-4">
+                    <p className="text-gray-600 text-sm mb-2">
+                      <span className="font-medium">เมนูในชุด:</span>
+                    </p>
+                    <div className="max-h-32 overflow-y-auto">
+                      {allMenuItems.length > 0 ? (
+                        <ul className="text-sm text-gray-600">
+                          {allMenuItems.map((item, idx) => (
+                            <li key={idx} className="truncate">
+                              • {item.menu && typeof item.menu === 'object' ? item.menu.name : 'Loading...'}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-sm text-gray-500">ไม่มีเมนูในชุด</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2 mb-3">
+                    <button
+                      className="btn bg-green-600 text-white hover:bg-green-700 flex-1"
+                      onClick={() => handlePackageSelect(pkg._id)}
+                    >
+                      จองชุดนี้
+                    </button>
+                    <button
+                      className="btn bg-gray-200 text-gray-800 hover:bg-gray-300 flex-1"
+                      onClick={() => handleViewDetails(pkg)}
+                    >
+                      ดูรายละเอียด
+                    </button>
                   </div>
                 </div>
-
-                <div className="flex flex-col sm:flex-row gap-2 mb-3">
-                  <button
-                    className="btn bg-green-600 text-white hover:bg-green-700 flex-1"
-                    onClick={() => handlePackageSelect(pkg._id)}
-                  >
-                    จองชุดนี้
-                  </button>
-                  <button
-                    className="btn bg-gray-200 text-gray-800 hover:bg-gray-300 flex-1"
-                    onClick={() => handleViewDetails(pkg)}
-                  >
-                    ดูรายละเอียด
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
 
           </div>
         ) : (
@@ -138,20 +153,20 @@ const MenuPackage = () => {
 
                 <div className="mb-4">
                   <p className="text-sm sm:text-base text-gray-600">
-                    <span className="font-medium">เลือกได้:</span> {selectedPackage.maxSelect} อย่าง
+                    <span className="font-medium">เลือกได้:</span> {selectedPackage.categories ? selectedPackage.categories.reduce((sum, c) => sum + (c.quota || 0), 0) : 0} อย่าง
                   </p>
                   <p className="text-sm sm:text-base text-gray-600">
-                    <span className="font-medium">ราคาเพิ่มเติม:</span> ฿{convertDecimalValue(selectedPackage.extraMenuPrice)}/อย่าง
+                    <span className="font-medium">ราคาเพิ่มเติม:</span> ฿{selectedPackage.categories && selectedPackage.categories.length > 0 ? (selectedPackage.categories[0].extraPrice || 200) : 200}/อย่าง
                   </p>
                 </div>
 
                 <div>
                   <p className="font-medium text-gray-700 mb-2">รายละเอียดเมนูในชุด:</p>
-                  {selectedPackage.menus && selectedPackage.menus.length > 0 ? (
+                  {selectedPackage.categories && selectedPackage.categories.length > 0 ? (
                     <ul className="space-y-1 max-h-60 overflow-y-auto text-sm">
-                      {selectedPackage.menus.map((menu, idx) => (
+                      {selectedPackage.categories.flatMap(c => c.items || []).map((item, idx) => (
                         <li key={idx} className="py-1 border-b border-gray-100 break-words">
-                          • {typeof menu === 'object' ? menu.name : menu}
+                          • {item.menu && typeof item.menu === 'object' ? item.menu.name : 'Loading...'}
                         </li>
                       ))}
                     </ul>

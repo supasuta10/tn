@@ -3,7 +3,11 @@ import http from './http-common';
 const API_URL = '/menu-packages';
 
 const createMenuPackage = (menuPackageData) => {
-    return http.post(API_URL, menuPackageData);
+    return http.post(API_URL, menuPackageData, {
+        headers: {
+            "Content-Type": undefined
+        }
+    });
 };
 
 const getAllMenuPackages = () => {
@@ -15,7 +19,11 @@ const getMenuPackageById = (id) => {
 };
 
 const updateMenuPackage = (id, menuPackageData) => {
-    return http.put(`${API_URL}/${id}`, menuPackageData);
+    return http.put(`${API_URL}/${id}`, menuPackageData, {
+        headers: {
+            "Content-Type": undefined
+        }
+    });
 };
 
 const deleteMenuPackage = (id) => {

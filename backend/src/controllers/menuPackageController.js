@@ -21,7 +21,18 @@ const extractMenuIds = (categories) => {
 // สร้าง MenuPackage ใหม่
 exports.createMenuPackage = async (req, res) => {
   try {
-    const { name, price, categories, description } = req.body;
+    let { name, price, categories, description } = req.body;
+
+    // Parse categories if it is a JSON string (sent via FormData)
+    if (typeof categories === 'string') {
+      try {
+        categories = JSON.parse(categories);
+      } catch (err) {
+        return res.status(400).json({ message: "รูปแบบข้อมูลหมวดหมู่ไม่ถูกต้อง" });
+      }
+    }
+
+    const image = req.file ? `/uploads/package-images/${req.file.filename}` : "";
 
     if (!name) {
       return res.status(400).json({ message: "ต้องระบุชื่อแพ็กเกจ" });
@@ -48,7 +59,8 @@ exports.createMenuPackage = async (req, res) => {
       name,
       price,
       categories,
-      description
+      description,
+      image
     });
 
     // --- Sync Menu.packages ---
@@ -140,7 +152,27 @@ exports.getMenuPackageById = async (req, res) => {
 exports.updateMenuPackage = async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = { ...req.body };
+    let updateData = { ...req.body };
+
+    // Parse categories if it is a JSON string
+    if (typeof updateData.categories === 'string') {
+      try {
+        updateData.categories = JSON.parse(updateData.categories);
+      } catch (err) {
+        return res.status(400).json({ message: "รูปแบบข้อมูลหมวดหมู่ไม่ถูกต้อง" });
+      }
+    }
+
+    // Handle image upload
+    if (req.file) {
+      updateData.image = `/uploads/package-images/${req.file.filename}`;
+    } else {
+      // If no new file is uploaded, remove 'image' from updateData to prevent overwriting with invalid data (like {})
+      // or to keep the existing image in DB.
+      delete updateData.image;
+    }
+
+
 
     // ตรวจสอบว่ามีการอัปเดต name หรือไม่
     if (updateData.name) {
