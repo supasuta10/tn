@@ -1,12 +1,12 @@
 import React from 'react';
 import http, { SERVER_URL } from '../../services/http-common';
 import Swal from 'sweetalert2';
-import { X, Calendar, User, MapPin, Phone, Mail, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { X, Calendar, User, MapPin, Phone, Mail, CheckCircle, Clock, XCircle, Edit } from 'lucide-react';
 import MapDisplay from './../../components/shared/MapDisplay';
 
 
 
-const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
+const BookingDetailsModal = ({ isOpen, onClose, booking, onEditMenu }) => {
   if (!isOpen || !booking) return null;
 
   const getStatusInfo = (status) => {
@@ -180,7 +180,21 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
 
             {/* Package Information */}
             <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="text-lg font-semibold text-gray-700 mb-3">ข้อมูลแพ็กเกจ</h4>
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="text-lg font-semibold text-gray-700">ข้อมูลแพ็กเกจ</h4>
+                {onEditMenu && (booking.payment_status === 'pending-deposit' || booking.payment_status === 'deposit-paid') && (
+                  <button
+                    onClick={() => {
+                      onClose(); // Close details modal first
+                      onEditMenu();
+                    }}
+                    className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded-full transition-colors"
+                    title="แก้ไขรายการอาหาร"
+                  >
+                    <Edit size={18} />
+                  </button>
+                )}
+              </div>
               <div className="space-y-2">
                 <div className="flex">
                   <span className="font-medium w-32 text-gray-600">ชื่อแพ็กเกจ:</span>
