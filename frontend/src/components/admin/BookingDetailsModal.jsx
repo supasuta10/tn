@@ -1,5 +1,5 @@
 import React from 'react';
-import axios from 'axios';
+import http, { SERVER_URL } from '../../services/http-common';
 import Swal from 'sweetalert2';
 import { X, Calendar, User, MapPin, Phone, Mail, CheckCircle, Clock, XCircle } from 'lucide-react';
 import MapDisplay from './../../components/shared/MapDisplay';
@@ -212,10 +212,7 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
             <button
               onClick={async () => {
                 try {
-                  const token = localStorage.getItem('token');
-                  await axios.post(`https://tn-8zig.onrender.com/api/bookings/${booking._id}/trigger-ai`, {}, {
-                    headers: { Authorization: `Bearer ${token}` }
-                  });
+                  await http.post(`/bookings/${booking._id}/trigger-ai`);
                   Swal.fire({
                     icon: 'success',
                     title: 'ส่งคำขอแล้ว',
@@ -433,12 +430,12 @@ const BookingDetailsModal = ({ isOpen, onClose, booking }) => {
                             )}
                             {payment.slip_image && (
                               <div className="mt-1">
-                                <a href={payment.slip_image} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs">
+                                <a href={`${SERVER_URL}${payment.slip_image}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs">
                                   ดูหลักฐานการชำระเงิน
                                 </a>
 
                                 <img
-                                  src={`http://localhost:8080${payment.slip_image}`}
+                                  src={`${SERVER_URL}${payment.slip_image}`}
                                   alt={payment.name}
                                   className="rounded-md object-cover h-40 w-auto mt-2 border border-gray-200"
                                 />
